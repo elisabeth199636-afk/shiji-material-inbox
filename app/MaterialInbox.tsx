@@ -57,26 +57,23 @@ type PatchMaterial = Partial<
   Pick<MaterialItem, "title" | "category" | "tags" | "notes" | "favorite">
 >;
 
-const categories = [
-  "收件箱",
-  "创作参考",
+const formalCategories = [
+  "灵感收集",
   "产品设计",
-  "营销增长",
+  "AI 学习",
+  "文字创作",
+  "视频创作",
   "知识学习",
-  "AI 与工具",
-  "生活灵感",
-  "想买清单",
 ] as const;
 
 const categoryColors: Record<string, string> = {
   收件箱: "violet",
-  创作参考: "coral",
+  灵感收集: "coral",
   产品设计: "blue",
-  营销增长: "amber",
+  "AI 学习": "purple",
+  文字创作: "amber",
+  视频创作: "pink",
   知识学习: "green",
-  "AI 与工具": "purple",
-  生活灵感: "cyan",
-  想买清单: "pink",
 };
 
 const primaryScopes = [
@@ -393,7 +390,7 @@ export function MaterialInbox() {
           </div>
 
           <div className="nav-group category-nav">
-            {categories.slice(1).map((category) => (
+            {formalCategories.map((category) => (
               <button
                 key={category}
                 className={`nav-item ${activeScope === category ? "active" : ""}`}
@@ -518,9 +515,12 @@ export function MaterialInbox() {
                     value={captureCategory}
                     onChange={(event) => setCaptureCategory(event.target.value)}
                   >
-                    {categories.map((category) => (
-                      <option key={category}>{category}</option>
-                    ))}
+                    <option>收件箱</option>
+                    <optgroup label="正式分类">
+                      {formalCategories.map((category) => (
+                        <option key={category}>{category}</option>
+                      ))}
+                    </optgroup>
                   </select>
                   <ChevronDown size={15} />
                 </span>
@@ -889,9 +889,12 @@ function Inspector({
               value={item.category}
               onChange={(event) => onPatch({ category: event.target.value })}
             >
-              {categories.map((category) => (
-                <option key={category}>{category}</option>
-              ))}
+              <option>收件箱</option>
+              <optgroup label="正式分类">
+                {formalCategories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </optgroup>
             </select>
             <ChevronDown size={15} />
           </div>

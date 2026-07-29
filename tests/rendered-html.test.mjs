@@ -17,6 +17,17 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /添加素材/);
   assert.match(client, /素材详情/);
   assert.match(client, /\/api\/items/);
+  for (const category of [
+    "灵感收集",
+    "产品设计",
+    "AI 学习",
+    "文字创作",
+    "视频创作",
+    "知识学习",
+  ]) {
+    assert.match(client, new RegExp(category));
+  }
+  assert.doesNotMatch(client, /通识学习/);
   assert.match(hosting, /"d1": "DB"/);
   assert.doesNotMatch(
     `${page}\n${layout}\n${client}`,

@@ -53,7 +53,7 @@ const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> 
     id: "sample-workspace",
     url: "https://unsplash.com/photos/a-person-is-typing-on-a-computer-keyboard-aNwGNIAi7Kk",
     title: "让创作桌面保持专注的收纳方式",
-    category: "创作参考",
+    category: "灵感收集",
     tags: ["工作流", "桌面", "效率"],
     notes: "桌面布局清晰，适合作为工作区整理与拍摄构图参考。",
     thumbnail: "/demo/workspace.jpg",
@@ -66,7 +66,7 @@ const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> 
     id: "sample-robot",
     url: "https://unsplash.com/photos/white-robot-wallpaper-JjGXjESMxOY",
     title: "AI 产品视觉：克制的未来感",
-    category: "AI 与工具",
+    category: "AI 学习",
     tags: ["AI", "视觉风格", "产品"],
     notes: "避免霓虹赛博朋克，黑白高反差更适合严肃的 AI 产品表达。",
     thumbnail: "/demo/robot.jpg",
@@ -79,7 +79,7 @@ const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> 
     id: "sample-travel-rock",
     url: "https://unsplash.com/photos/a-woman-standing-on-a-rock-in-the-water-02fgSTavbyE",
     title: "湖边人物与自然景观的取景关系",
-    category: "生活灵感",
+    category: "灵感收集",
     tags: ["旅行", "摄影", "构图"],
     notes: "人物放在画面边缘，给湖面与山体留下更多呼吸空间。",
     thumbnail: "/demo/travel-rock.jpg",
@@ -92,7 +92,7 @@ const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> 
     id: "sample-mountain",
     url: "https://unsplash.com/photos/person-enjoys-a-stunning-view-of-lake-and-mountains-r1LiDUXcp5Q",
     title: "把旅行目的地做成内容专题",
-    category: "生活灵感",
+    category: "灵感收集",
     tags: ["新西兰", "旅行计划", "专题"],
     notes: "可以继续补充交通、住宿和徒步路线，组合成一个专题。",
     thumbnail: "/demo/mountain-view.jpg",
@@ -105,7 +105,7 @@ const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> 
     id: "sample-lake",
     url: "https://unsplash.com/photos/a-mountain-range-with-a-lake-in-the-foreground-5CbjzGrni4c",
     title: "冷色风景影像的层次控制",
-    category: "创作参考",
+    category: "灵感收集",
     tags: ["调色", "风景", "摄影"],
     notes: "远山、湖面和前景保持三个清晰层次，适合做封面图。",
     thumbnail: "/demo/lake.jpg",
@@ -163,6 +163,15 @@ export async function ensureDatabase(): Promise<void> {
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS items_category_idx ON items(category)",
+    ),
+    db.prepare(
+      "UPDATE items SET category = '灵感收集' WHERE category IN ('创作参考', '生活灵感', '想买清单')",
+    ),
+    db.prepare(
+      "UPDATE items SET category = 'AI 学习' WHERE category = 'AI 与工具'",
+    ),
+    db.prepare(
+      "UPDATE items SET category = '文字创作' WHERE category = '营销增长'",
     ),
   ]);
 
