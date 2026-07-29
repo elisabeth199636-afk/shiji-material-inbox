@@ -1,0 +1,1018 @@
+"use client";
+
+import {
+  Bookmark,
+  Check,
+  ChevronDown,
+  Clock3,
+  ExternalLink,
+  Folder,
+  Grid2X2,
+  Inbox,
+  LayoutList,
+  Link2,
+  LoaderCircle,
+  Menu,
+  Monitor,
+  MoreHorizontal,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  Search,
+  Smartphone,
+  Sparkles,
+  Star,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+type MaterialItem = {
+  id: string;
+  url: string;
+  normalizedUrl: string;
+  title: string;
+  platform: string;
+  author: string | null;
+  thumbnail: string | null;
+  category: string;
+  tags: string[];
+  notes: string;
+  captureMethod: string;
+  device: string;
+  favorite: boolean;
+  status: string;
+  createdAt: string;
+};
+
+type PatchMaterial = Partial<
+  Pick<MaterialItem, "title" | "category" | "tags" | "notes" | "favorite">
+>;
+
+const categories = [
+  "收件箱",
+  "创作参考",
+  "产品设计",
+  "营销增长",
+  "知识学习",
+  "AI 与工具",
+  "生活灵感",
+  "想买清单",
+] as const;
+
+const categoryColors: Record<string, string> = {
+  收件箱: "violet",
+  创作参考: "coral",
+  产品设计: "blue",
+  营销增长: "amber",
+  知识学习: "green",
+  "AI 与工具": "purple",
+  生活灵感: "cyan",
+  想买清单: "pink",
+};
+
+const primaryScopes = [
+  { id: "all", label: "所有素材", icon: Grid2X2 },
+  { id: "inbox", label: "收件箱", icon: Inbox },
+  { id: "favorites", label: "我的收藏", icon: Star },
+  { id: "recent", label: "最近添加", icon: Clock3 },
+];
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  if (isToday) {
+    return `今天 ${new Intl.DateTimeFormat("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date)}`;
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function getHostname(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function platformClass(platform: string) {
+  if (platform.includes("抖音")) return "douyin";
+  if (platform.includes("小红书")) return "red";
+  if (platform.includes("B站")) return "bilibili";
+  if (platform.includes("AI")) return "ai";
+  return "web";
+}
+
+export function MaterialInbox() {
+  const [items, setItems] = useState<MaterialItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeScope, setActiveScope] = useState("all");
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureUrl, setCaptureUrl] = useState("");
+  const [captureTitle, setCaptureTitle] = useState("");
+  const [captureCategory, setCaptureCategory] = useState("收件箱");
+  const [captureTags, setCaptureTags] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const captureUrlRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyboard = (event: globalThis.KeyboardEvent) => {
+      const command = event.metaKey || event.ctrlKey;
+      if (command && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (command && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setCaptureOpen(true);
+        window.setTimeout(() => captureUrlRef.current?.focus(), 80);
+      }
+      if (event.key === "Escape") {
+        setCaptureOpen(false);
+        setSidebarOpen(false);
+      }
+    };
+    const handlePaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.matches("input, textarea, select") ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      const value = event.clipboardData?.getData("text/plain").trim() ?? "";
+      if (/^https?:\/\//i.test(value)) {
+        setCaptureUrl(value);
+        setCaptureOpen(true);
+        window.setTimeout(() => captureUrlRef.current?.focus(), 80);
+      }
+    };
+    window.addEventListener("keydown", handleKeyboard);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("keydown", handleKeyboard);
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  const counts = useMemo(() => {
+    return {
+      all: items.length,
+      inbox: items.filter((item) => item.category === "收件箱").length,
+      favorites: items.filter((item) => item.favorite).length,
+      recent: items.filter(
+        (item) =>
+          Date.now() - new Date(item.createdAt).getTime() <
+          7 * 24 * 60 * 60 * 1000,
+      ).length,
+    };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesScope =
+        activeScope === "all" ||
+        (activeScope === "inbox" && item.category === "收件箱") ||
+        (activeScope === "favorites" && item.favorite) ||
+        (activeScope === "recent" &&
+          Date.now() - new Date(item.createdAt).getTime() <
+            7 * 24 * 60 * 60 * 1000) ||
+        item.category === activeScope;
+
+      if (!matchesScope) return false;
+      if (!normalizedQuery) return true;
+      const haystack = [
+        item.title,
+        item.platform,
+        item.author,
+        item.notes,
+        item.category,
+        ...item.tags,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [activeScope, items, query]);
+
+  const activeLabel =
+    primaryScopes.find((scope) => scope.id === activeScope)?.label ??
+    activeScope;
+
+  async function loadItems() {
+    try {
+      const response = await fetch("/api/items", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setItems(data.items);
+      setSelectedId((current) => current ?? data.items[0]?.id ?? null);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "素材加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function patchItem(id: string, patch: PatchMaterial) {
+    const snapshot = items;
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+    try {
+      const response = await fetch("/api/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setItems((current) =>
+        current.map((item) => (item.id === id ? data.item : item)),
+      );
+    } catch (error) {
+      setItems(snapshot);
+      setToast(error instanceof Error ? error.message : "保存失败");
+    }
+  }
+
+  async function addItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!captureUrl.trim()) {
+      setToast("请先粘贴一个链接");
+      captureUrlRef.current?.focus();
+      return;
+    }
+    setAdding(true);
+    try {
+      const response = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: captureUrl.trim(),
+          title: captureTitle.trim(),
+          category: captureCategory,
+          tags: captureTags
+            .split(/[,，、]/)
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+          captureMethod: "网页粘贴",
+          device: "网页",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      if (!data.duplicate) {
+        setItems((current) => [data.item, ...current]);
+      }
+      setSelectedId(data.item.id);
+      setInspectorOpen(true);
+      setActiveScope("all");
+      setCaptureUrl("");
+      setCaptureTitle("");
+      setCaptureTags("");
+      setCaptureCategory("收件箱");
+      setCaptureOpen(false);
+      setToast(data.duplicate ? "这条素材已经在库里了" : "素材已进入收件箱");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function removeItem(item: MaterialItem) {
+    const confirmed = window.confirm(`确定删除“${item.title}”吗？`);
+    if (!confirmed) return;
+    try {
+      const response = await fetch(
+        `/api/items?id=${encodeURIComponent(item.id)}`,
+        { method: "DELETE" },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      setSelectedId(null);
+      setInspectorOpen(false);
+      setToast("素材已删除");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "删除失败");
+    }
+  }
+
+  function selectScope(id: string) {
+    setActiveScope(id);
+    setSidebarOpen(false);
+  }
+
+  return (
+    <div
+      className={`app-shell ${inspectorOpen ? "" : "inspector-closed"}`}
+    >
+      <button
+        className={`sidebar-scrim ${sidebarOpen ? "visible" : ""}`}
+        aria-label="关闭分类导航"
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+        <div className="brand">
+          <div className="brand-mark" aria-hidden="true">
+            <span />
+            <span />
+          </div>
+          <div>
+            <strong>拾集</strong>
+            <small>个人灵感素材库</small>
+          </div>
+          <button
+            className="sidebar-close icon-button"
+            aria-label="关闭分类导航"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <nav className="sidebar-scroll" aria-label="素材库导航">
+          <div className="nav-group">
+            {primaryScopes.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={`nav-item ${activeScope === id ? "active" : ""}`}
+                onClick={() => selectScope(id)}
+              >
+                <Icon size={16} strokeWidth={1.8} />
+                <span>{label}</span>
+                <em>{counts[id as keyof typeof counts]}</em>
+              </button>
+            ))}
+          </div>
+
+          <div className="nav-section-heading">
+            <span>分类</span>
+            <button aria-label="新增分类">
+              <Plus size={14} />
+            </button>
+          </div>
+
+          <div className="nav-group category-nav">
+            {categories.slice(1).map((category) => (
+              <button
+                key={category}
+                className={`nav-item ${activeScope === category ? "active" : ""}`}
+                onClick={() => selectScope(category)}
+              >
+                <span
+                  className={`category-dot ${categoryColors[category]}`}
+                  aria-hidden="true"
+                />
+                <span>{category}</span>
+                <em>
+                  {items.filter((item) => item.category === category).length}
+                </em>
+              </button>
+            ))}
+          </div>
+
+          <div className="nav-section-heading">
+            <span>常用标签</span>
+            <button aria-label="管理标签">
+              <MoreHorizontal size={15} />
+            </button>
+          </div>
+          <div className="sidebar-tags">
+            {["灵感", "待实践", "视觉风格", "工作流", "旅行"].map((tag) => (
+              <button key={tag} onClick={() => setQuery(tag)}>
+                <span>#</span>
+                {tag}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="sync-dot" />
+          <span>云端已同步</span>
+          <small>{items.length} 条素材</small>
+        </div>
+      </aside>
+
+      <main className="workspace">
+        <header className="topbar">
+          <button
+            className="mobile-menu icon-button"
+            aria-label="打开分类导航"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={19} />
+          </button>
+
+          <label className="search-field">
+            <Search size={17} aria-hidden="true" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索标题、标签、备注..."
+              aria-label="搜索素材"
+            />
+            <kbd>⌘ K</kbd>
+          </label>
+
+          <div className="topbar-actions">
+            <button
+              className="primary-button"
+              onClick={() => {
+                setCaptureOpen(true);
+                window.setTimeout(() => captureUrlRef.current?.focus(), 80);
+              }}
+            >
+              <Plus size={16} />
+              <span>添加素材</span>
+            </button>
+            <button className="avatar" aria-label="账户与设置">
+              J
+            </button>
+          </div>
+        </header>
+
+        {captureOpen && (
+          <section className="capture-tray" aria-label="添加新素材">
+            <div className="capture-heading">
+              <div className="capture-icon">
+                <Link2 size={18} />
+              </div>
+              <div>
+                <strong>把链接放进素材库</strong>
+                <p>先保存，分类和标签都可以稍后补充。</p>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="关闭添加素材"
+                onClick={() => setCaptureOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={addItem} className="capture-form">
+              <label className="field field-url">
+                <span>素材链接</span>
+                <input
+                  ref={captureUrlRef}
+                  type="url"
+                  value={captureUrl}
+                  onChange={(event) => setCaptureUrl(event.target.value)}
+                  placeholder="粘贴抖音、小红书、B站或任意网页链接"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="field">
+                <span>标题（可选）</span>
+                <input
+                  value={captureTitle}
+                  onChange={(event) => setCaptureTitle(event.target.value)}
+                  placeholder="不填则使用来源生成"
+                />
+              </label>
+              <label className="field">
+                <span>分类</span>
+                <span className="select-wrap">
+                  <select
+                    value={captureCategory}
+                    onChange={(event) => setCaptureCategory(event.target.value)}
+                  >
+                    {categories.map((category) => (
+                      <option key={category}>{category}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} />
+                </span>
+              </label>
+              <label className="field">
+                <span>标签（可选）</span>
+                <input
+                  value={captureTags}
+                  onChange={(event) => setCaptureTags(event.target.value)}
+                  placeholder="用逗号分隔"
+                />
+              </label>
+              <button
+                className="save-button"
+                type="submit"
+                disabled={adding}
+              >
+                {adding ? (
+                  <LoaderCircle className="spin" size={17} />
+                ) : (
+                  <Check size={17} />
+                )}
+                {adding ? "保存中" : "保存到收件箱"}
+              </button>
+            </form>
+          </section>
+        )}
+
+        <section className="library-heading">
+          <div>
+            <div className="heading-line">
+              <h1>{activeLabel}</h1>
+              <span>{filteredItems.length}</span>
+            </div>
+            <p>
+              {query
+                ? `正在查找“${query}”`
+                : activeScope === "inbox"
+                  ? "先收进来，再慢慢整理。"
+                  : "收集来自手机与电脑的每一条灵感。"}
+            </p>
+          </div>
+          <div className="view-tools">
+            <div className="segmented" aria-label="素材显示方式">
+              <button
+                className={view === "grid" ? "active" : ""}
+                aria-label="卡片视图"
+                onClick={() => setView("grid")}
+              >
+                <Grid2X2 size={16} />
+              </button>
+              <button
+                className={view === "list" ? "active" : ""}
+                aria-label="列表视图"
+                onClick={() => setView("list")}
+              >
+                <LayoutList size={17} />
+              </button>
+            </div>
+            <button
+              className="inspector-toggle icon-button"
+              aria-label={inspectorOpen ? "收起详情" : "显示详情"}
+              onClick={() => setInspectorOpen((current) => !current)}
+            >
+              {inspectorOpen ? (
+                <PanelRightClose size={18} />
+              ) : (
+                <PanelRightOpen size={18} />
+              )}
+            </button>
+          </div>
+        </section>
+
+        <div className="library-scroll">
+          {loading ? (
+            <LoadingState />
+          ) : filteredItems.length === 0 ? (
+            <EmptyState
+              query={query}
+              onAdd={() => {
+                setQuery("");
+                setCaptureOpen(true);
+              }}
+            />
+          ) : view === "grid" ? (
+            <div className="asset-grid">
+              {filteredItems.map((item, index) => (
+                <AssetCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  selected={selectedId === item.id}
+                  onSelect={() => {
+                    setSelectedId(item.id);
+                    setInspectorOpen(true);
+                  }}
+                  onFavorite={() =>
+                    patchItem(item.id, { favorite: !item.favorite })
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="asset-list">
+              {filteredItems.map((item) => (
+                <AssetRow
+                  key={item.id}
+                  item={item}
+                  selected={selectedId === item.id}
+                  onSelect={() => {
+                    setSelectedId(item.id);
+                    setInspectorOpen(true);
+                  }}
+                  onFavorite={() =>
+                    patchItem(item.id, { favorite: !item.favorite })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <button
+        className={`detail-scrim ${inspectorOpen && selected ? "visible" : ""}`}
+        aria-label="关闭素材详情"
+        onClick={() => setInspectorOpen(false)}
+      />
+
+      <aside
+        className={`inspector ${inspectorOpen && selected ? "open" : ""}`}
+        aria-label="素材详情"
+      >
+        {selected ? (
+          <Inspector
+            key={selected.id}
+            item={selected}
+            onClose={() => setInspectorOpen(false)}
+            onPatch={(patch) => patchItem(selected.id, patch)}
+            onDelete={() => removeItem(selected)}
+          />
+        ) : (
+          <div className="inspector-empty">
+            <Bookmark size={24} />
+            <strong>选择一条素材</strong>
+            <p>这里会显示来源、分类、标签与备注。</p>
+          </div>
+        )}
+      </aside>
+
+      {toast && (
+        <div className="toast" role="status">
+          <Check size={16} />
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssetCard({
+  item,
+  index,
+  selected,
+  onSelect,
+  onFavorite,
+}: {
+  item: MaterialItem;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+  onFavorite: () => void;
+}) {
+  return (
+    <article
+      className={`asset-card ${selected ? "selected" : ""}`}
+      onClick={onSelect}
+    >
+      <div className={`asset-media ratio-${index % 3}`}>
+        {item.thumbnail ? (
+          <img src={item.thumbnail} alt="" />
+        ) : (
+          <LinkPreview item={item} />
+        )}
+        <span className="platform-badge">{item.platform}</span>
+        <button
+          className={`favorite-button ${item.favorite ? "active" : ""}`}
+          aria-label={item.favorite ? "取消收藏" : "收藏素材"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onFavorite();
+          }}
+        >
+          <Star size={15} fill={item.favorite ? "currentColor" : "none"} />
+        </button>
+      </div>
+      <div className="asset-copy">
+        <h2>{item.title}</h2>
+        <div className="asset-meta">
+          <span>{item.category}</span>
+          <span>{formatDate(item.createdAt)}</span>
+        </div>
+        {item.tags.length > 0 && (
+          <div className="card-tags">
+            {item.tags.slice(0, 3).map((tag) => (
+              <span key={tag}>#{tag}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function AssetRow({
+  item,
+  selected,
+  onSelect,
+  onFavorite,
+}: {
+  item: MaterialItem;
+  selected: boolean;
+  onSelect: () => void;
+  onFavorite: () => void;
+}) {
+  return (
+    <article
+      className={`asset-row ${selected ? "selected" : ""}`}
+      onClick={onSelect}
+    >
+      <div className="row-thumb">
+        {item.thumbnail ? (
+          <img src={item.thumbnail} alt="" />
+        ) : (
+          <LinkPreview item={item} compact />
+        )}
+      </div>
+      <div className="row-main">
+        <strong>{item.title}</strong>
+        <span>{item.author || getHostname(item.url)}</span>
+      </div>
+      <span className="row-category">{item.category}</span>
+      <div className="row-tags">
+        {item.tags.slice(0, 2).map((tag) => (
+          <span key={tag}>#{tag}</span>
+        ))}
+      </div>
+      <span className="row-date">{formatDate(item.createdAt)}</span>
+      <button
+        className={`row-favorite ${item.favorite ? "active" : ""}`}
+        aria-label={item.favorite ? "取消收藏" : "收藏素材"}
+        onClick={(event) => {
+          event.stopPropagation();
+          onFavorite();
+        }}
+      >
+        <Star size={16} fill={item.favorite ? "currentColor" : "none"} />
+      </button>
+    </article>
+  );
+}
+
+function LinkPreview({
+  item,
+  compact = false,
+}: {
+  item: MaterialItem;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`link-preview ${platformClass(item.platform)} ${compact ? "compact" : ""}`}
+    >
+      <div className="link-preview-mark">
+        {item.platform.slice(0, compact ? 1 : 2)}
+      </div>
+      {!compact && (
+        <div>
+          <strong>{getHostname(item.url)}</strong>
+          <span>网页收藏</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Inspector({
+  item,
+  onClose,
+  onPatch,
+  onDelete,
+}: {
+  item: MaterialItem;
+  onClose: () => void;
+  onPatch: (patch: PatchMaterial) => void;
+  onDelete: () => void;
+}) {
+  const [tagDraft, setTagDraft] = useState("");
+
+  function addTag(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || !tagDraft.trim()) return;
+    event.preventDefault();
+    onPatch({ tags: [...item.tags, tagDraft.trim()] });
+    setTagDraft("");
+  }
+
+  return (
+    <>
+      <div className="inspector-header">
+        <span>素材详情</span>
+        <button className="icon-button" aria-label="关闭详情" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="inspector-scroll">
+        <div className="inspector-preview">
+          {item.thumbnail ? (
+            <img src={item.thumbnail} alt={item.title} />
+          ) : (
+            <LinkPreview item={item} />
+          )}
+        </div>
+
+        <div className="inspector-actions">
+          <button
+            className={item.favorite ? "active" : ""}
+            onClick={() => onPatch({ favorite: !item.favorite })}
+          >
+            <Star size={16} fill={item.favorite ? "currentColor" : "none"} />
+            {item.favorite ? "已收藏" : "收藏"}
+          </button>
+          <a href={item.url} target="_blank" rel="noreferrer">
+            <ExternalLink size={16} />
+            打开来源
+          </a>
+        </div>
+
+        <section className="inspector-section">
+          <label className="detail-label" htmlFor={`title-${item.id}`}>
+            标题
+          </label>
+          <textarea
+            id={`title-${item.id}`}
+            className="title-editor"
+            defaultValue={item.title}
+            rows={2}
+            onBlur={(event) => {
+              if (event.target.value.trim() !== item.title) {
+                onPatch({ title: event.target.value });
+              }
+            }}
+          />
+        </section>
+
+        <section className="inspector-section">
+          <label className="detail-label" htmlFor={`category-${item.id}`}>
+            分类
+          </label>
+          <div className="category-select">
+            <span
+              className={`category-dot ${categoryColors[item.category] || "violet"}`}
+            />
+            <select
+              id={`category-${item.id}`}
+              value={item.category}
+              onChange={(event) => onPatch({ category: event.target.value })}
+            >
+              {categories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+            <ChevronDown size={15} />
+          </div>
+        </section>
+
+        <section className="inspector-section">
+          <label className="detail-label" htmlFor={`tags-${item.id}`}>
+            标签
+          </label>
+          <div className="detail-tags">
+            {item.tags.map((tag) => (
+              <button
+                key={tag}
+                title="点击移除标签"
+                onClick={() =>
+                  onPatch({ tags: item.tags.filter((value) => value !== tag) })
+                }
+              >
+                #{tag}
+                <X size={12} />
+              </button>
+            ))}
+            <input
+              id={`tags-${item.id}`}
+              value={tagDraft}
+              onChange={(event) => setTagDraft(event.target.value)}
+              onKeyDown={addTag}
+              placeholder="+ 添加标签"
+            />
+          </div>
+        </section>
+
+        <section className="inspector-section">
+          <label className="detail-label" htmlFor={`notes-${item.id}`}>
+            我的备注
+          </label>
+          <textarea
+            id={`notes-${item.id}`}
+            className="notes-editor"
+            defaultValue={item.notes}
+            placeholder="记下为什么收藏，以及准备如何使用..."
+            rows={5}
+            onBlur={(event) => {
+              if (event.target.value !== item.notes) {
+                onPatch({ notes: event.target.value });
+              }
+            }}
+          />
+        </section>
+
+        <section className="inspector-section source-section">
+          <span className="detail-label">来源信息</span>
+          <dl>
+            <div>
+              <dt>平台</dt>
+              <dd>{item.platform}</dd>
+            </div>
+            <div>
+              <dt>作者</dt>
+              <dd>{item.author || "未识别"}</dd>
+            </div>
+            <div>
+              <dt>采集方式</dt>
+              <dd>
+                {item.device.toLowerCase().includes("iphone") ? (
+                  <Smartphone size={14} />
+                ) : (
+                  <Monitor size={14} />
+                )}
+                {item.captureMethod}
+              </dd>
+            </div>
+            <div>
+              <dt>保存时间</dt>
+              <dd>{formatDate(item.createdAt)}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <button className="delete-button" onClick={onDelete}>
+          <Trash2 size={15} />
+          删除这条素材
+        </button>
+      </div>
+    </>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="asset-grid" aria-label="正在加载素材">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div className="loading-card" key={index}>
+          <div />
+          <span />
+          <i />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({
+  query,
+  onAdd,
+}: {
+  query: string;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="empty-state">
+      <div className="empty-symbol">
+        {query ? <Search size={25} /> : <Sparkles size={25} />}
+      </div>
+      <h2>{query ? "没有找到匹配的素材" : "这里还没有素材"}</h2>
+      <p>
+        {query
+          ? "试试减少关键词，或者换一个分类查看。"
+          : "粘贴一个链接，开始建立你的灵感素材库。"}
+      </p>
+      <button onClick={onAdd}>{query ? "清除搜索" : "添加第一条素材"}</button>
+    </div>
+  );
+}
