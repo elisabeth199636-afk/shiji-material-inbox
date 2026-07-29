@@ -3,10 +3,11 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("builds the material inbox product surface", async () => {
-  const [page, layout, client, hosting] = await Promise.all([
+  const [page, layout, client, categoriesRoute, hosting] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/MaterialInbox.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/categories/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     access(new URL("../dist/server/index.js", import.meta.url)),
   ]);
@@ -17,6 +18,10 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /添加素材/);
   assert.match(client, /素材详情/);
   assert.match(client, /\/api\/items/);
+  assert.match(client, /\/api\/categories/);
+  assert.match(client, /输入分类名称/);
+  assert.match(categoriesRoute, /createCategory/);
+  assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
   for (const category of [
     "灵感收集",
     "产品设计",

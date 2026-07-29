@@ -30,6 +30,14 @@ export type CreateMaterialInput = {
   device?: string;
 };
 
+export type MaterialCategory = {
+  name: string;
+  color: string;
+  position: number;
+  isDefault: boolean;
+  createdAt: string;
+};
+
 type ItemRow = {
   id: string;
   url: string;
@@ -47,6 +55,34 @@ type ItemRow = {
   status: string;
   created_at: string;
 };
+
+type CategoryRow = {
+  name: string;
+  color: string;
+  position: number;
+  is_default: number;
+  created_at: string;
+};
+
+const defaultCategories = [
+  { name: "灵感收集", color: "coral", position: 0 },
+  { name: "产品设计", color: "blue", position: 1 },
+  { name: "AI 学习", color: "purple", position: 2 },
+  { name: "文字创作", color: "amber", position: 3 },
+  { name: "视频创作", color: "pink", position: 4 },
+  { name: "知识学习", color: "green", position: 5 },
+] as const;
+
+const categoryPalette = [
+  "cyan",
+  "coral",
+  "blue",
+  "amber",
+  "green",
+  "purple",
+  "pink",
+  "violet",
+] as const;
 
 const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> = [
   {
@@ -158,6 +194,15 @@ export async function ensureDatabase(): Promise<void> {
         created_at TEXT NOT NULL
       )
     `),
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS categories (
+        name TEXT PRIMARY KEY,
+        color TEXT NOT NULL DEFAULT 'cyan',
+        position INTEGER NOT NULL DEFAULT 0,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS items_created_at_idx ON items(created_at DESC)",
     ),
@@ -172,6 +217,20 @@ export async function ensureDatabase(): Promise<void> {
     ),
     db.prepare(
       "UPDATE items SET category = '文字创作' WHERE category = '营销增长'",
+    ),
+    ...defaultCategories.map((category) =>
+      db
+        .prepare(`
+          INSERT OR IGNORE INTO categories (
+            name, color, position, is_default, created_at
+          ) VALUES (?, ?, ?, 1, ?)
+        `)
+        .bind(
+          category.name,
+          category.color,
+          category.position,
+          "2026-07-29T00:00:00.000Z",
+        ),
     ),
   ]);
 
@@ -209,6 +268,67 @@ export async function ensureDatabase(): Promise<void> {
       }),
     );
   }
+}
+
+export async function listCategories(): Promise<MaterialCategory[]> {
+  await ensureDatabase();
+  const result = await getBinding()
+    .prepare(
+      "SELECT * FROM categories ORDER BY position ASC, created_at ASC, name ASC",
+    )
+    .all<CategoryRow>();
+  return result.results.map(mapCategoryRow);
+}
+
+export async function createCategory(
+  name: string,
+): Promise<{ category: MaterialCategory; duplicate: boolean }> {
+  await ensureDatabase();
+  const db = getBinding();
+  const existing = await db
+    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+    .bind(name)
+    .first<CategoryRow>();
+
+  if (existing) {
+    return { category: mapCategoryRow(existing), duplicate: true };
+  }
+
+  const aggregate = await db
+    .prepare(`
+      SELECT
+        COUNT(*) AS count,
+        COALESCE(MAX(position), -1) + 1 AS next_position
+      FROM categories
+    `)
+    .first<{ count: number; next_position: number }>();
+  const color =
+    categoryPalette[(aggregate?.count ?? 0) % categoryPalette.length];
+  const createdAt = new Date().toISOString();
+  const position = aggregate?.next_position ?? defaultCategories.length;
+
+  const inserted = await db
+    .prepare(`
+      INSERT OR IGNORE INTO categories (
+        name, color, position, is_default, created_at
+      ) VALUES (?, ?, ?, 0, ?)
+    `)
+    .bind(name, color, position, createdAt)
+    .run();
+
+  const category = await db
+    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+    .bind(name)
+    .first<CategoryRow>();
+
+  if (!category) {
+    throw new Error("分类创建失败，请稍后重试");
+  }
+
+  return {
+    category: mapCategoryRow(category),
+    duplicate: (inserted.meta.changes ?? 0) === 0,
+  };
 }
 
 export async function listItems(): Promise<MaterialItem[]> {
@@ -359,6 +479,16 @@ function mapRow(row: ItemRow): MaterialItem {
     device: row.device,
     favorite: Boolean(row.favorite),
     status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function mapCategoryRow(row: CategoryRow): MaterialCategory {
+  return {
+    name: row.name,
+    color: row.color,
+    position: row.position,
+    isDefault: Boolean(row.is_default),
     createdAt: row.created_at,
   };
 }

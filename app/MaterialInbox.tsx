@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Clock3,
   ExternalLink,
-  Folder,
   Grid2X2,
   Inbox,
   LayoutList,
@@ -22,7 +21,6 @@ import {
   Smartphone,
   Sparkles,
   Star,
-  Tag,
   Trash2,
   X,
 } from "lucide-react";
@@ -57,24 +55,58 @@ type PatchMaterial = Partial<
   Pick<MaterialItem, "title" | "category" | "tags" | "notes" | "favorite">
 >;
 
-const formalCategories = [
-  "灵感收集",
-  "产品设计",
-  "AI 学习",
-  "文字创作",
-  "视频创作",
-  "知识学习",
-] as const;
-
-const categoryColors: Record<string, string> = {
-  收件箱: "violet",
-  灵感收集: "coral",
-  产品设计: "blue",
-  "AI 学习": "purple",
-  文字创作: "amber",
-  视频创作: "pink",
-  知识学习: "green",
+type MaterialCategory = {
+  name: string;
+  color: string;
+  position: number;
+  isDefault: boolean;
+  createdAt: string;
 };
+
+const initialCategories: MaterialCategory[] = [
+  {
+    name: "灵感收集",
+    color: "coral",
+    position: 0,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+  {
+    name: "产品设计",
+    color: "blue",
+    position: 1,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+  {
+    name: "AI 学习",
+    color: "purple",
+    position: 2,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+  {
+    name: "文字创作",
+    color: "amber",
+    position: 3,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+  {
+    name: "视频创作",
+    color: "pink",
+    position: 4,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+  {
+    name: "知识学习",
+    color: "green",
+    position: 5,
+    isDefault: true,
+    createdAt: "2026-07-29T00:00:00.000Z",
+  },
+];
 
 const primaryScopes = [
   { id: "all", label: "所有素材", icon: Grid2X2 },
@@ -131,9 +163,15 @@ export function MaterialInbox() {
   const [captureCategory, setCaptureCategory] = useState("收件箱");
   const [captureTags, setCaptureTags] = useState("");
   const [adding, setAdding] = useState(false);
+  const [categories, setCategories] =
+    useState<MaterialCategory[]>(initialCategories);
+  const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const captureUrlRef = useRef<HTMLInputElement>(null);
+  const categoryNameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadItems();
@@ -154,6 +192,8 @@ export function MaterialInbox() {
       if (event.key === "Escape") {
         setCaptureOpen(false);
         setSidebarOpen(false);
+        setCategoryEditorOpen(false);
+        setCategoryName("");
       }
     };
     const handlePaste = (event: ClipboardEvent) => {
@@ -186,6 +226,14 @@ export function MaterialInbox() {
   }, [toast]);
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
+  const categoryColors = useMemo(
+    () =>
+      Object.fromEntries([
+        ["收件箱", "violet"],
+        ...categories.map((category) => [category.name, category.color]),
+      ]) as Record<string, string>,
+    [categories],
+  );
 
   const counts = useMemo(() => {
     return {
@@ -235,11 +283,19 @@ export function MaterialInbox() {
 
   async function loadItems() {
     try {
-      const response = await fetch("/api/items", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setItems(data.items);
-      setSelectedId((current) => current ?? data.items[0]?.id ?? null);
+      const [itemsResponse, categoriesResponse] = await Promise.all([
+        fetch("/api/items", { cache: "no-store" }),
+        fetch("/api/categories", { cache: "no-store" }),
+      ]);
+      const [itemsData, categoriesData] = await Promise.all([
+        itemsResponse.json(),
+        categoriesResponse.json(),
+      ]);
+      if (!itemsResponse.ok) throw new Error(itemsData.error);
+      if (!categoriesResponse.ok) throw new Error(categoriesData.error);
+      setItems(itemsData.items);
+      setCategories(categoriesData.categories);
+      setSelectedId((current) => current ?? itemsData.items[0]?.id ?? null);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "素材加载失败");
     } finally {
@@ -314,6 +370,43 @@ export function MaterialInbox() {
     }
   }
 
+  async function addCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = categoryName.trim().replace(/\s+/g, " ");
+    if (!name) {
+      setToast("请输入分类名称");
+      categoryNameRef.current?.focus();
+      return;
+    }
+
+    setAddingCategory(true);
+    try {
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setCategories((current) =>
+        [...current, data.category].sort(
+          (first, second) => first.position - second.position,
+        ),
+      );
+      setActiveScope(data.category.name);
+      setCaptureCategory(data.category.name);
+      setCategoryName("");
+      setCategoryEditorOpen(false);
+      setSidebarOpen(false);
+      setToast(`已创建分类“${data.category.name}”`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "分类创建失败");
+      categoryNameRef.current?.focus();
+    } finally {
+      setAddingCategory(false);
+    }
+  }
+
   async function removeItem(item: MaterialItem) {
     const confirmed = window.confirm(`确定删除“${item.title}”吗？`);
     if (!confirmed) return;
@@ -384,25 +477,72 @@ export function MaterialInbox() {
 
           <div className="nav-section-heading">
             <span>分类</span>
-            <button aria-label="新增分类">
+            <button
+              className={categoryEditorOpen ? "active" : ""}
+              aria-label="新增分类"
+              aria-expanded={categoryEditorOpen}
+              onClick={() => {
+                setCategoryEditorOpen(true);
+                window.setTimeout(() => categoryNameRef.current?.focus(), 40);
+              }}
+            >
               <Plus size={14} />
             </button>
           </div>
 
-          <div className="nav-group category-nav">
-            {formalCategories.map((category) => (
+          {categoryEditorOpen && (
+            <form className="category-create" onSubmit={addCategory}>
+              <input
+                ref={categoryNameRef}
+                value={categoryName}
+                onChange={(event) => setCategoryName(event.target.value)}
+                placeholder="输入分类名称"
+                aria-label="分类名称"
+                maxLength={12}
+                autoComplete="off"
+              />
               <button
-                key={category}
-                className={`nav-item ${activeScope === category ? "active" : ""}`}
-                onClick={() => selectScope(category)}
+                className="confirm"
+                type="submit"
+                aria-label="确认新增分类"
+                disabled={addingCategory || !categoryName.trim()}
+              >
+                {addingCategory ? (
+                  <LoaderCircle className="spin" size={14} />
+                ) : (
+                  <Check size={14} />
+                )}
+              </button>
+              <button
+                type="button"
+                aria-label="取消新增分类"
+                onClick={() => {
+                  setCategoryEditorOpen(false);
+                  setCategoryName("");
+                }}
+              >
+                <X size={14} />
+              </button>
+            </form>
+          )}
+
+          <div className="nav-group category-nav">
+            {categories.map((category) => (
+              <button
+                key={category.name}
+                className={`nav-item ${activeScope === category.name ? "active" : ""}`}
+                onClick={() => selectScope(category.name)}
               >
                 <span
-                  className={`category-dot ${categoryColors[category]}`}
+                  className={`category-dot ${category.color}`}
                   aria-hidden="true"
                 />
-                <span>{category}</span>
+                <span>{category.name}</span>
                 <em>
-                  {items.filter((item) => item.category === category).length}
+                  {
+                    items.filter((item) => item.category === category.name)
+                      .length
+                  }
                 </em>
               </button>
             ))}
@@ -516,9 +656,9 @@ export function MaterialInbox() {
                     onChange={(event) => setCaptureCategory(event.target.value)}
                   >
                     <option>收件箱</option>
-                    <optgroup label="正式分类">
-                      {formalCategories.map((category) => (
-                        <option key={category}>{category}</option>
+                    <optgroup label="素材分类">
+                      {categories.map((category) => (
+                        <option key={category.name}>{category.name}</option>
                       ))}
                     </optgroup>
                   </select>
@@ -658,6 +798,8 @@ export function MaterialInbox() {
           <Inspector
             key={selected.id}
             item={selected}
+            categories={categories}
+            categoryColors={categoryColors}
             onClose={() => setInspectorOpen(false)}
             onPatch={(patch) => patchItem(selected.id, patch)}
             onDelete={() => removeItem(selected)}
@@ -809,11 +951,15 @@ function LinkPreview({
 
 function Inspector({
   item,
+  categories,
+  categoryColors,
   onClose,
   onPatch,
   onDelete,
 }: {
   item: MaterialItem;
+  categories: MaterialCategory[];
+  categoryColors: Record<string, string>;
   onClose: () => void;
   onPatch: (patch: PatchMaterial) => void;
   onDelete: () => void;
@@ -890,9 +1036,9 @@ function Inspector({
               onChange={(event) => onPatch({ category: event.target.value })}
             >
               <option>收件箱</option>
-              <optgroup label="正式分类">
-                {formalCategories.map((category) => (
-                  <option key={category}>{category}</option>
+              <optgroup label="素材分类">
+                {categories.map((category) => (
+                  <option key={category.name}>{category.name}</option>
                 ))}
               </optgroup>
             </select>
