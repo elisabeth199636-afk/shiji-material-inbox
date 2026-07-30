@@ -17,6 +17,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  RefreshCw,
   Search,
   Smartphone,
   Sparkles,
@@ -48,6 +49,7 @@ type MaterialItem = {
   device: string;
   favorite: boolean;
   status: string;
+  previewCheckedAt: string | null;
   createdAt: string;
 };
 
@@ -168,10 +170,14 @@ export function MaterialInbox() {
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
+  const [refreshingPreviewIds, setRefreshingPreviewIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [toast, setToast] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const captureUrlRef = useRef<HTMLInputElement>(null);
   const categoryNameRef = useRef<HTMLInputElement>(null);
+  const refreshingPreviewIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     loadItems();
@@ -296,6 +302,14 @@ export function MaterialInbox() {
       setItems(itemsData.items);
       setCategories(categoriesData.categories);
       setSelectedId((current) => current ?? itemsData.items[0]?.id ?? null);
+      const previewsToRead = (itemsData.items as MaterialItem[])
+        .filter((item) => !item.thumbnail && !item.previewCheckedAt)
+        .slice(0, 4);
+      window.setTimeout(() => {
+        previewsToRead.forEach((item) => {
+          void refreshPreview(item.id, true);
+        });
+      }, 120);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "素材加载失败");
     } finally {
@@ -362,11 +376,51 @@ export function MaterialInbox() {
       setCaptureTags("");
       setCaptureCategory("收件箱");
       setCaptureOpen(false);
-      setToast(data.duplicate ? "这条素材已经在库里了" : "素材已进入收件箱");
+      if (!data.item.thumbnail && !data.item.previewCheckedAt) {
+        void refreshPreview(data.item.id, true);
+      }
+      setToast(
+        data.duplicate
+          ? "这条素材已经在库里了"
+          : "素材已保存，正在读取链接预览",
+      );
     } catch (error) {
       setToast(error instanceof Error ? error.message : "保存失败");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function refreshPreview(id: string, silent = false) {
+    if (refreshingPreviewIdsRef.current.has(id)) return;
+    refreshingPreviewIdsRef.current.add(id);
+    setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
+
+    try {
+      const response = await fetch("/api/items/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setItems((current) =>
+        current.map((item) => (item.id === id ? data.item : item)),
+      );
+      if (!silent) {
+        setToast(
+          data.found
+            ? "预览图已更新"
+            : "该网页没有公开预览图，已保留原链接",
+        );
+      }
+    } catch (error) {
+      if (!silent) {
+        setToast(error instanceof Error ? error.message : "预览读取失败");
+      }
+    } finally {
+      refreshingPreviewIdsRef.current.delete(id);
+      setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
     }
   }
 
@@ -760,6 +814,8 @@ export function MaterialInbox() {
                   onFavorite={() =>
                     patchItem(item.id, { favorite: !item.favorite })
                   }
+                  refreshingPreview={refreshingPreviewIds.has(item.id)}
+                  onRefreshPreview={() => void refreshPreview(item.id)}
                 />
               ))}
             </div>
@@ -800,9 +856,11 @@ export function MaterialInbox() {
             item={selected}
             categories={categories}
             categoryColors={categoryColors}
+            refreshingPreview={refreshingPreviewIds.has(selected.id)}
             onClose={() => setInspectorOpen(false)}
             onPatch={(patch) => patchItem(selected.id, patch)}
             onDelete={() => removeItem(selected)}
+            onRefreshPreview={() => void refreshPreview(selected.id)}
           />
         ) : (
           <div className="inspector-empty">
@@ -829,12 +887,16 @@ function AssetCard({
   selected,
   onSelect,
   onFavorite,
+  refreshingPreview,
+  onRefreshPreview,
 }: {
   item: MaterialItem;
   index: number;
   selected: boolean;
   onSelect: () => void;
   onFavorite: () => void;
+  refreshingPreview: boolean;
+  onRefreshPreview: () => void;
 }) {
   return (
     <article
@@ -842,11 +904,12 @@ function AssetCard({
       onClick={onSelect}
     >
       <div className={`asset-media ratio-${index % 3}`}>
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt="" />
-        ) : (
-          <LinkPreview item={item} />
-        )}
+        <PreviewVisual
+          item={item}
+          alt=""
+          refreshing={refreshingPreview}
+          onRefresh={onRefreshPreview}
+        />
         <span className="platform-badge">{item.platform}</span>
         <button
           className={`favorite-button ${item.favorite ? "active" : ""}`}
@@ -894,11 +957,7 @@ function AssetRow({
       onClick={onSelect}
     >
       <div className="row-thumb">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt="" />
-        ) : (
-          <LinkPreview item={item} compact />
-        )}
+        <PreviewVisual item={item} alt="" compact />
       </div>
       <div className="row-main">
         <strong>{item.title}</strong>
@@ -925,12 +984,59 @@ function AssetRow({
   );
 }
 
+function PreviewVisual({
+  item,
+  alt,
+  compact = false,
+  priority = false,
+  refreshing = false,
+  onRefresh,
+}: {
+  item: MaterialItem;
+  alt: string;
+  compact?: boolean;
+  priority?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [item.previewCheckedAt, item.thumbnail]);
+
+  if (item.thumbnail && !imageFailed) {
+    return (
+      <img
+        src={item.thumbnail}
+        alt={alt}
+        loading={priority ? "eager" : "lazy"}
+        referrerPolicy="no-referrer"
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <LinkPreview
+      item={item}
+      compact={compact}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+    />
+  );
+}
+
 function LinkPreview({
   item,
   compact = false,
+  refreshing = false,
+  onRefresh,
 }: {
   item: MaterialItem;
   compact?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
   return (
     <div
@@ -940,10 +1046,29 @@ function LinkPreview({
         {item.platform.slice(0, compact ? 1 : 2)}
       </div>
       {!compact && (
-        <div>
+        <div className="link-preview-copy">
           <strong>{getHostname(item.url)}</strong>
-          <span>网页收藏</span>
+          <span>{refreshing ? "正在读取预览" : "网页收藏"}</span>
         </div>
+      )}
+      {!compact && onRefresh && (
+        <button
+          className="preview-read-button"
+          type="button"
+          aria-label={`读取“${item.title}”的链接预览`}
+          disabled={refreshing}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRefresh();
+          }}
+        >
+          <RefreshCw className={refreshing ? "spin" : ""} size={13} />
+          {refreshing
+            ? "读取中"
+            : item.previewCheckedAt
+              ? "重试预览"
+              : "读取预览"}
+        </button>
       )}
     </div>
   );
@@ -953,16 +1078,20 @@ function Inspector({
   item,
   categories,
   categoryColors,
+  refreshingPreview,
   onClose,
   onPatch,
   onDelete,
+  onRefreshPreview,
 }: {
   item: MaterialItem;
   categories: MaterialCategory[];
   categoryColors: Record<string, string>;
+  refreshingPreview: boolean;
   onClose: () => void;
   onPatch: (patch: PatchMaterial) => void;
   onDelete: () => void;
+  onRefreshPreview: () => void;
 }) {
   const [tagDraft, setTagDraft] = useState("");
 
@@ -984,11 +1113,13 @@ function Inspector({
 
       <div className="inspector-scroll">
         <div className="inspector-preview">
-          {item.thumbnail ? (
-            <img src={item.thumbnail} alt={item.title} />
-          ) : (
-            <LinkPreview item={item} />
-          )}
+          <PreviewVisual
+            item={item}
+            alt={item.title}
+            priority
+            refreshing={refreshingPreview}
+            onRefresh={onRefreshPreview}
+          />
         </div>
 
         <div className="inspector-actions">

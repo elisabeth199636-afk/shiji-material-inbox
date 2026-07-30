@@ -25,6 +25,7 @@ export const items = sqliteTable("items", {
   device: text("device").notNull().default("网页"),
   favorite: integer("favorite", { mode: "boolean" }).notNull().default(false),
   status: text("status").notNull().default("ready"),
+  previewCheckedAt: text("preview_checked_at"),
   createdAt: text("created_at").notNull(),
 });
 

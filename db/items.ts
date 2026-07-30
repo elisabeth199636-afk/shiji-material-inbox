@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { fetchLinkPreview, fetchPreviewImage } from "./link-preview";
 
 export type MaterialItem = {
   id: string;
@@ -15,6 +16,7 @@ export type MaterialItem = {
   device: string;
   favorite: boolean;
   status: string;
+  previewCheckedAt: string | null;
   createdAt: string;
 };
 
@@ -53,6 +55,7 @@ type ItemRow = {
   device: string;
   favorite: number;
   status: string;
+  preview_checked_at: string | null;
   created_at: string;
 };
 
@@ -191,6 +194,7 @@ export async function ensureDatabase(): Promise<void> {
         device TEXT NOT NULL DEFAULT '网页',
         favorite INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'ready',
+        preview_checked_at TEXT,
         created_at TEXT NOT NULL
       )
     `),
@@ -234,6 +238,8 @@ export async function ensureDatabase(): Promise<void> {
     ),
   ]);
 
+  await ensurePreviewCheckedAtColumn(db);
+
   const count = await db
     .prepare("SELECT COUNT(*) AS count FROM items")
     .first<{ count: number }>();
@@ -247,8 +253,8 @@ export async function ensureDatabase(): Promise<void> {
             INSERT OR IGNORE INTO items (
               id, url, normalized_url, title, platform, author, thumbnail,
               category, tags, notes, capture_method, device, favorite,
-              status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'ready', ?)
+              status, preview_checked_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'ready', ?, ?)
           `)
           .bind(
             item.id,
@@ -263,6 +269,7 @@ export async function ensureDatabase(): Promise<void> {
             item.notes ?? "",
             item.captureMethod ?? "网页粘贴",
             item.device ?? "网页",
+            item.thumbnail ? item.createdAt : null,
             item.createdAt,
           );
       }),
@@ -357,6 +364,7 @@ export async function createItem(
   const id = crypto.randomUUID();
   const platform = detectPlatform(input.url);
   const hostname = new URL(input.url).hostname.replace(/^www\./, "");
+  const createdAt = new Date().toISOString();
   const item: MaterialItem = {
     id,
     url: input.url,
@@ -372,7 +380,8 @@ export async function createItem(
     device: input.device || "网页",
     favorite: false,
     status: "ready",
-    createdAt: new Date().toISOString(),
+    previewCheckedAt: input.thumbnail ? createdAt : null,
+    createdAt,
   };
 
   await db
@@ -380,8 +389,8 @@ export async function createItem(
       INSERT INTO items (
         id, url, normalized_url, title, platform, author, thumbnail,
         category, tags, notes, capture_method, device, favorite,
-        status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        status, preview_checked_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       item.id,
@@ -398,11 +407,54 @@ export async function createItem(
       item.device,
       0,
       item.status,
+      item.previewCheckedAt,
       item.createdAt,
     )
     .run();
 
   return { item, duplicate: false };
+}
+
+export async function refreshItemPreview(
+  id: string,
+): Promise<MaterialItem | null> {
+  await ensureDatabase();
+  const db = getBinding();
+  const existing = await db
+    .prepare("SELECT * FROM items WHERE id = ? LIMIT 1")
+    .bind(id)
+    .first<ItemRow>();
+
+  if (!existing) return null;
+  const current = mapRow(existing);
+  const metadata = await fetchLinkPreview(current.url);
+  const previewCheckedAt = new Date().toISOString();
+  const shouldReplaceTitle =
+    current.title.startsWith("来自 ") && current.title.endsWith(" 的新素材");
+  const title =
+    shouldReplaceTitle && metadata.title ? metadata.title : current.title;
+  const fetchedThumbnail = metadata.image
+    ? await persistPreviewImage(id, metadata.image)
+    : null;
+  const thumbnail = fetchedThumbnail || metadata.image || current.thumbnail;
+  const author = current.author || metadata.author;
+
+  await db
+    .prepare(`
+      UPDATE items
+      SET title = ?, author = ?, thumbnail = ?, preview_checked_at = ?
+      WHERE id = ?
+    `)
+    .bind(title, author, thumbnail, previewCheckedAt, id)
+    .run();
+
+  return {
+    ...current,
+    title,
+    author,
+    thumbnail,
+    previewCheckedAt,
+  };
 }
 
 export async function updateItem(
@@ -454,7 +506,13 @@ export async function deleteItem(id: string): Promise<boolean> {
     .prepare("DELETE FROM items WHERE id = ?")
     .bind(id)
     .run();
-  return (result.meta.changes ?? 0) > 0;
+  const deleted = (result.meta.changes ?? 0) > 0;
+  if (deleted) {
+    await getPreviewBucket()
+      ?.delete(`previews/${id}`)
+      .catch(() => undefined);
+  }
+  return deleted;
 }
 
 function mapRow(row: ItemRow): MaterialItem {
@@ -479,6 +537,7 @@ function mapRow(row: ItemRow): MaterialItem {
     device: row.device,
     favorite: Boolean(row.favorite),
     status: row.status,
+    previewCheckedAt: row.preview_checked_at ?? null,
     createdAt: row.created_at,
   };
 }
@@ -532,4 +591,47 @@ function cleanTags(tags: string[]): string[] {
   return Array.from(
     new Set(tags.map((tag) => tag.trim()).filter(Boolean)),
   ).slice(0, 12);
+}
+
+async function ensurePreviewCheckedAtColumn(db: D1Database): Promise<void> {
+  const columns = await db
+    .prepare("PRAGMA table_info(items)")
+    .all<{ name: string }>();
+  if (columns.results.some((column) => column.name === "preview_checked_at")) {
+    return;
+  }
+
+  try {
+    await db
+      .prepare("ALTER TABLE items ADD COLUMN preview_checked_at TEXT")
+      .run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.toLowerCase().includes("duplicate column")) throw error;
+  }
+}
+
+function getPreviewBucket(): R2Bucket | null {
+  return (
+    (env as unknown as { PREVIEWS?: R2Bucket }).PREVIEWS ??
+    null
+  );
+}
+
+async function persistPreviewImage(
+  itemId: string,
+  imageUrl: string,
+): Promise<string | null> {
+  const bucket = getPreviewBucket();
+  if (!bucket) return null;
+
+  const image = await fetchPreviewImage(imageUrl);
+  if (!image) return null;
+  await bucket.put(`previews/${itemId}`, image.bytes, {
+    httpMetadata: {
+      contentType: image.contentType,
+      cacheControl: "public, max-age=31536000, immutable",
+    },
+  });
+  return `/api/preview-image?id=${encodeURIComponent(itemId)}&v=${Date.now()}`;
 }

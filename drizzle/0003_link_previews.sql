@@ -1,0 +1,1 @@
+ALTER TABLE `items` ADD `preview_checked_at` text;

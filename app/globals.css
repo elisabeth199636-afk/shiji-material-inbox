@@ -899,6 +899,7 @@ img {
 }
 
 .link-preview {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -943,12 +944,12 @@ img {
   backdrop-filter: blur(5px);
 }
 
-.link-preview > div:last-child strong,
-.link-preview > div:last-child span {
+.link-preview-copy strong,
+.link-preview-copy span {
   display: block;
 }
 
-.link-preview > div:last-child strong {
+.link-preview-copy strong {
   max-width: 130px;
   overflow: hidden;
   font-size: 12px;
@@ -956,10 +957,39 @@ img {
   white-space: nowrap;
 }
 
-.link-preview > div:last-child span {
+.link-preview-copy span {
   margin-top: 5px;
   color: oklch(0.9 0.015 280);
   font-size: 10px;
+}
+
+.preview-read-button {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid oklch(1 0 0 / 0.2);
+  border-radius: 7px;
+  background: oklch(0.14 0.02 270 / 0.78);
+  color: oklch(0.98 0 0);
+  font-size: 10px;
+  backdrop-filter: blur(6px);
+  transition:
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+.preview-read-button:hover {
+  background: oklch(0.2 0.035 274 / 0.92);
+}
+
+.preview-read-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .link-preview.compact {
