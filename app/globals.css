@@ -167,11 +167,6 @@ img {
   font-size: 11px;
 }
 
-.sidebar-close {
-  display: none;
-  margin-left: auto;
-}
-
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;
@@ -1491,7 +1486,6 @@ img {
     transform: translateX(0);
   }
 
-  .sidebar-close,
   .mobile-menu {
     display: grid;
   }

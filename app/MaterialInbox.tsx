@@ -518,13 +518,6 @@ export function MaterialInbox() {
             <strong>拾集</strong>
             <small>个人灵感素材库</small>
           </div>
-          <button
-            className="sidebar-close icon-button"
-            aria-label="关闭分类导航"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X size={17} />
-          </button>
         </div>
 
         <nav className="sidebar-scroll" aria-label="素材库导航">
