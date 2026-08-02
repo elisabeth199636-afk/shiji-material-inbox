@@ -117,7 +117,22 @@ const primaryScopes = [
   { id: "recent", label: "最近添加", icon: Clock3 },
 ];
 
-const DEFAULT_COVER = "/default-cover.jpg";
+const GENERAL_DEFAULT_COVER = "/default-cover.jpg";
+const CATEGORY_DEFAULT_COVERS: Record<string, string> = {
+  灵感收集: "/default-covers/inspiration.jpg",
+  产品设计: "/default-covers/product.jpg",
+  产品学习: "/default-covers/product.jpg",
+  "AI 学习": "/default-covers/ai.jpg",
+  AI学习: "/default-covers/ai.jpg",
+  文字创作: "/default-covers/writing.jpg",
+  视频创作: "/default-covers/video.jpg",
+  视频学习: "/default-covers/video.jpg",
+  知识学习: "/default-covers/learning.jpg",
+};
+
+function getDefaultCover(category: string) {
+  return CATEGORY_DEFAULT_COVERS[category] ?? GENERAL_DEFAULT_COVER;
+}
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -1014,6 +1029,7 @@ function PreviewVisual({
   return (
     <DefaultPreview
       alt={alt}
+      category={item.category}
       compact={compact}
       refreshing={refreshing}
       previewChecked={Boolean(item.previewCheckedAt)}
@@ -1024,12 +1040,14 @@ function PreviewVisual({
 
 function DefaultPreview({
   alt,
+  category,
   compact = false,
   refreshing = false,
   previewChecked = false,
   onRefresh,
 }: {
   alt: string;
+  category: string;
   compact?: boolean;
   refreshing?: boolean;
   previewChecked?: boolean;
@@ -1037,7 +1055,7 @@ function DefaultPreview({
 }) {
   return (
     <div className={`default-preview ${compact ? "compact" : ""}`}>
-      <img src={DEFAULT_COVER} alt={alt} loading="lazy" />
+      <img src={getDefaultCover(category)} alt={alt} loading="lazy" />
       {!compact && onRefresh && (
         <button
           className="preview-read-button"

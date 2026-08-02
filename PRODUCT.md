@@ -40,3 +40,14 @@ product
 链接没有公开封面或封面加载失败时，统一使用 Amr Taha 在 Unsplash 发布的桌面工作区原图作为默认封面；来源平台标签保持不变。
 
 默认封面来源：https://unsplash.com/photos/a-person-is-typing-on-a-computer-keyboard-aNwGNIAi7Kk
+
+正式分类使用各自的兜底封面：
+
+- 灵感收集：https://unsplash.com/photos/a-hand-stretches-blue-goo-dripping-downwards-ExTD4l34Mak
+- 产品设计：https://unsplash.com/photos/person-using-laptop-vZJdYl5JVXY
+- AI 学习：https://unsplash.com/photos/an-abstract-image-of-a-sphere-with-dots-and-lines-nGoCBxiaRO0
+- 文字创作：https://unsplash.com/photos/person-holding-ballpoint-pen-writing-on-notebook-505eectW54k
+- 视频创作：https://unsplash.com/photos/a-person-edits-video-at-a-modern-computer-setup-xGklNeRfBK8
+- 知识学习：https://unsplash.com/photos/creative-artists-studio-with-easel-painting-and-art-supplies-QnYqq6tlVq8
+
+收件箱和用户自定义分类继续使用通用桌面工作区封面。
