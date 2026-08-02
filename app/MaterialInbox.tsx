@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowUp,
   Bookmark,
   Check,
   ChevronDown,
@@ -169,6 +170,7 @@ export function MaterialInbox() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [searchHistoryOpen, setSearchHistoryOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -190,6 +192,7 @@ export function MaterialInbox() {
   const searchRef = useRef<HTMLInputElement>(null);
   const captureUrlRef = useRef<HTMLInputElement>(null);
   const categoryNameRef = useRef<HTMLInputElement>(null);
+  const libraryScrollRef = useRef<HTMLDivElement>(null);
   const refreshingPreviewIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -929,7 +932,13 @@ export function MaterialInbox() {
           </div>
         </section>
 
-        <div className="library-scroll">
+        <div
+          className="library-scroll"
+          ref={libraryScrollRef}
+          onScroll={(event) => {
+            setShowBackToTop(event.currentTarget.scrollTop > 240);
+          }}
+        >
           {loading ? (
             <LoadingState />
           ) : filteredItems.length === 0 ? (
@@ -980,6 +989,25 @@ export function MaterialInbox() {
             </div>
           )}
         </div>
+
+        <button
+          className={`back-to-top ${showBackToTop ? "visible" : ""}`}
+          type="button"
+          aria-label="回到素材列表顶部"
+          aria-hidden={!showBackToTop}
+          tabIndex={showBackToTop ? 0 : -1}
+          onClick={() => {
+            const reduceMotion = window.matchMedia(
+              "(prefers-reduced-motion: reduce)",
+            ).matches;
+            libraryScrollRef.current?.scrollTo({
+              top: 0,
+              behavior: reduceMotion ? "auto" : "smooth",
+            });
+          }}
+        >
+          <ArrowUp size={18} />
+        </button>
       </main>
 
       <button
