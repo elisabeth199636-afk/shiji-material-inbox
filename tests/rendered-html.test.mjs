@@ -41,6 +41,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /已从分享文案中识别出链接/);
   assert.match(client, /Pinterest 等网页链接/);
   assert.doesNotMatch(client, /sidebar-close/);
+  assert.match(client, /最近搜索/);
+  assert.match(client, /清空记录/);
+  assert.match(client, /shiji\.search-history/);
   assert.match(client, /extractHttpUrl/);
   assert.match(client, /const GENERAL_DEFAULT_COVER = "\/default-cover\.jpg"/);
   assert.match(client, /CATEGORY_DEFAULT_COVERS/);

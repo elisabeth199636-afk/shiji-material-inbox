@@ -118,6 +118,7 @@ const primaryScopes = [
   { id: "recent", label: "最近添加", icon: Clock3 },
 ];
 
+const SEARCH_HISTORY_KEY = "shiji.search-history";
 const GENERAL_DEFAULT_COVER = "/default-cover.jpg";
 const CATEGORY_DEFAULT_COVERS: Record<string, string> = {
   灵感收集: "/default-covers/inspiration.jpg",
@@ -165,6 +166,8 @@ export function MaterialInbox() {
   const [loading, setLoading] = useState(true);
   const [activeScope, setActiveScope] = useState("all");
   const [query, setQuery] = useState("");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [searchHistoryOpen, setSearchHistoryOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -191,6 +194,18 @@ export function MaterialInbox() {
 
   useEffect(() => {
     loadItems();
+    try {
+      const storedHistory = JSON.parse(
+        window.localStorage.getItem(SEARCH_HISTORY_KEY) ?? "[]",
+      );
+      if (Array.isArray(storedHistory)) {
+        setSearchHistory(
+          storedHistory.filter((entry) => typeof entry === "string").slice(0, 8),
+        );
+      }
+    } catch {
+      setSearchHistory([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -208,6 +223,7 @@ export function MaterialInbox() {
       if (event.key === "Escape") {
         setCaptureOpen(false);
         setSidebarOpen(false);
+        setSearchHistoryOpen(false);
         setCategoryEditorOpen(false);
         setCategoryName("");
       }
@@ -298,6 +314,45 @@ export function MaterialInbox() {
   const activeLabel =
     primaryScopes.find((scope) => scope.id === activeScope)?.label ??
     activeScope;
+
+  const visibleSearchHistory = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    if (!value) return searchHistory;
+    return searchHistory.filter((entry) => entry.toLowerCase().includes(value));
+  }, [query, searchHistory]);
+
+  function saveSearchHistory(nextHistory: string[]) {
+    setSearchHistory(nextHistory);
+    try {
+      window.localStorage.setItem(
+        SEARCH_HISTORY_KEY,
+        JSON.stringify(nextHistory),
+      );
+    } catch {
+      // Search history is a device-local convenience and may fail privately.
+    }
+  }
+
+  function rememberSearch(value: string) {
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (!normalized) return;
+    const nextHistory = [
+      normalized,
+      ...searchHistory.filter(
+        (entry) => entry.toLowerCase() !== normalized.toLowerCase(),
+      ),
+    ].slice(0, 8);
+    saveSearchHistory(nextHistory);
+  }
+
+  function clearSearchHistory() {
+    setSearchHistory([]);
+    try {
+      window.localStorage.removeItem(SEARCH_HISTORY_KEY);
+    } catch {
+      // Ignore unavailable device storage.
+    }
+  }
 
   async function loadItems() {
     try {
@@ -641,17 +696,86 @@ export function MaterialInbox() {
             <Menu size={19} />
           </button>
 
-          <label className="search-field">
-            <Search size={17} aria-hidden="true" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索标题、标签、备注..."
-              aria-label="搜索素材"
-            />
-            <kbd>⌘ K</kbd>
-          </label>
+          <div
+            className="search-shell"
+            onBlur={(event) => {
+              if (
+                !event.currentTarget.contains(event.relatedTarget as Node | null)
+              ) {
+                rememberSearch(query);
+                setSearchHistoryOpen(false);
+              }
+            }}
+          >
+            <label className="search-field">
+              <Search size={17} aria-hidden="true" />
+              <input
+                ref={searchRef}
+                value={query}
+                onFocus={() => setSearchHistoryOpen(true)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSearchHistoryOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    rememberSearch(query);
+                    setSearchHistoryOpen(false);
+                  }
+                  if (event.key === "Escape") {
+                    setSearchHistoryOpen(false);
+                  }
+                }}
+                placeholder="搜索标题、标签、备注..."
+                aria-label="搜索素材"
+                aria-expanded={searchHistoryOpen}
+                aria-controls="search-history"
+              />
+              <kbd>⌘ K</kbd>
+            </label>
+
+            {searchHistoryOpen && (
+              <div
+                className="search-history"
+                id="search-history"
+                aria-label="搜索记录"
+              >
+                <div className="search-history-heading">
+                  <strong>最近搜索</strong>
+                  {searchHistory.length > 0 && (
+                    <button type="button" onClick={clearSearchHistory}>
+                      清空记录
+                    </button>
+                  )}
+                </div>
+                {visibleSearchHistory.length > 0 ? (
+                  <div className="search-history-list">
+                    {visibleSearchHistory.map((entry) => (
+                      <button
+                        key={entry}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setQuery(entry);
+                          rememberSearch(entry);
+                          setSearchHistoryOpen(false);
+                        }}
+                      >
+                        <Clock3 size={14} />
+                        <span>{entry}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="search-history-empty">
+                    {searchHistory.length > 0
+                      ? "没有匹配的搜索记录"
+                      : "还没有搜索记录"}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="topbar-actions">
             <button
