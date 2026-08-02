@@ -685,7 +685,7 @@ export function MaterialInbox() {
               </div>
               <div>
                 <strong>把链接或分享文案放进素材库</strong>
-                <p>支持从小红书等平台的整段分享文字中自动提取网址。</p>
+                <p>支持从小红书、抖音和 B站整段分享文字中自动提取网址。</p>
               </div>
               <button
                 className="icon-button"
@@ -714,7 +714,7 @@ export function MaterialInbox() {
                       setToast("已从分享文案中识别出链接");
                     }
                   }}
-                  placeholder="粘贴小红书整段分享文案，或任意网页链接"
+                  placeholder="粘贴小红书、抖音、B站分享文案，或任意网页链接"
                   autoComplete="off"
                 />
               </label>

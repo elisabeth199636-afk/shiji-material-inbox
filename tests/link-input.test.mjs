@@ -20,3 +20,23 @@ test("keeps a plain URL and removes trailing share punctuation", () => {
   );
   assert.equal(extractHttpUrl("没有网址的分享文字"), null);
 });
+
+test("extracts a Bilibili URL from title and share parameters", () => {
+  const shareText =
+    "【从刺杀权贵的革命者到大汉奸，汪精卫为什么转变？【历史调研室103】】 https://www.bilibili.com/video/BV1W4Gw62ErS/?share_source=copy_web&vd_source=4791a27ae8d7bba701481542a6488deb";
+
+  assert.equal(
+    extractHttpUrl(shareText),
+    "https://www.bilibili.com/video/BV1W4Gw62ErS/?share_source=copy_web&vd_source=4791a27ae8d7bba701481542a6488deb",
+  );
+});
+
+test("extracts a Douyin short link from command-style share copy", () => {
+  const shareText =
+    "9.25 OXZ:/ 11/11 T@L.jP :3pm 品鉴下网友强推的盒马零食 # 盒马 # 零食 # 测评# 吃货 # 种草  https://v.douyin.com/vzCnQXBRHDk/ 复制此链接，打开Dou音搜索，直接观看视频！";
+
+  assert.equal(
+    extractHttpUrl(shareText),
+    "https://v.douyin.com/vzCnQXBRHDk/",
+  );
+});
