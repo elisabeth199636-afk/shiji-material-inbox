@@ -11,6 +11,8 @@ test("builds the material inbox product surface", async () => {
     previewRoute,
     previewImageRoute,
     linkPreview,
+    itemsSource,
+    globals,
     hosting,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -20,6 +22,8 @@ test("builds the material inbox product surface", async () => {
     readFile(new URL("../app/api/items/preview/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/preview-image/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/link-preview.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/items.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     access(new URL("../dist/server/index.js", import.meta.url)),
   ]);
@@ -51,12 +55,17 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /categoryColor=\{categoryColors\[item\.category\]/);
   assert.match(categoriesRoute, /createCategory/);
   assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
+  assert.match(linkPreview, /MAX_REDIRECTS/);
+  assert.match(itemsSource, /SELECT color, COUNT\(\*\) AS usage/);
+  assert.match(itemsSource, /usageByColor\.get\(candidate\)/);
+  for (const color of ["teal", "lime", "orange", "red"]) {
+    assert.match(globals, new RegExp(`category-dot\\.${color}`));
+  }
   assert.match(previewRoute, /refreshItemPreview/);
   assert.match(previewImageRoute, /PREVIEWS/);
   assert.match(previewImageRoute, /X-Content-Type-Options/);
   assert.match(linkPreview, /og:image/);
   assert.match(linkPreview, /twitter:image/);
-  assert.match(linkPreview, /MAX_REDIRECTS/);
   for (const category of [
     "灵感收集",
     "产品设计",

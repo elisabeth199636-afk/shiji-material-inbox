@@ -78,13 +78,17 @@ const defaultCategories = [
 
 const categoryPalette = [
   "cyan",
+  "violet",
+  "teal",
+  "lime",
+  "orange",
+  "red",
   "coral",
   "blue",
   "amber",
   "green",
   "purple",
   "pink",
-  "violet",
 ] as const;
 
 const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> = [
@@ -304,13 +308,26 @@ export async function createCategory(
   const aggregate = await db
     .prepare(`
       SELECT
-        COUNT(*) AS count,
         COALESCE(MAX(position), -1) + 1 AS next_position
       FROM categories
     `)
-    .first<{ count: number; next_position: number }>();
-  const color =
-    categoryPalette[(aggregate?.count ?? 0) % categoryPalette.length];
+    .first<{ next_position: number }>();
+  const colorUsage = await db
+    .prepare(`
+      SELECT color, COUNT(*) AS usage
+      FROM categories
+      GROUP BY color
+    `)
+    .all<{ color: string; usage: number }>();
+  const usageByColor = new Map(
+    colorUsage.results.map((entry) => [entry.color, entry.usage]),
+  );
+  const color = categoryPalette.reduce((best, candidate) => {
+    return (usageByColor.get(candidate) ?? 0) <
+      (usageByColor.get(best) ?? 0)
+      ? candidate
+      : best;
+  }, categoryPalette[0]);
   const createdAt = new Date().toISOString();
   const position = aggregate?.next_position ?? defaultCategories.length;
 
