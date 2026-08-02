@@ -39,7 +39,7 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /输入分类名称/);
   assert.match(client, /读取预览/);
   assert.match(client, /已从分享文案中识别出链接/);
-  assert.match(client, /小红书、抖音和 B站/);
+  assert.match(client, /Pinterest 等网页链接/);
   assert.match(client, /extractHttpUrl/);
   assert.match(client, /const GENERAL_DEFAULT_COVER = "\/default-cover\.jpg"/);
   assert.match(client, /CATEGORY_DEFAULT_COVERS/);
@@ -61,6 +61,8 @@ test("builds the material inbox product surface", async () => {
   assert.match(linkPreview, /MAX_REDIRECTS/);
   assert.match(itemsSource, /SELECT color, COUNT\(\*\) AS usage/);
   assert.match(itemsSource, /usageByColor\.get\(candidate\)/);
+  assert.match(itemsSource, /return "Pinterest"/);
+  assert.match(itemsSource, /pin\.it/);
   for (const color of ["teal", "lime", "orange", "red"]) {
     assert.match(globals, new RegExp(`category-dot\\.${color}`));
   }

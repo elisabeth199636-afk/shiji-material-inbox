@@ -605,6 +605,7 @@ function detectPlatform(value: string): string {
   if (host.includes("weixin.qq.com")) return "微信公众号";
   if (host.includes("youtube.com") || host.includes("youtu.be"))
     return "YouTube";
+  if (host.includes("pinterest.com") || host === "pin.it") return "Pinterest";
   if (host.includes("unsplash.com")) return "Unsplash";
   return host.replace(/^www\./, "");
 }

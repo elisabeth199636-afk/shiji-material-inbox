@@ -40,3 +40,14 @@ test("extracts a Douyin short link from command-style share copy", () => {
     "https://v.douyin.com/vzCnQXBRHDk/",
   );
 });
+
+test("keeps Pinterest pin and short-link URLs", () => {
+  assert.equal(
+    extractHttpUrl("https://www.pinterest.com/pin/819655200979166983/"),
+    "https://www.pinterest.com/pin/819655200979166983/",
+  );
+  assert.equal(
+    extractHttpUrl("Pinterest 灵感 https://pin.it/example"),
+    "https://pin.it/example",
+  );
+});
