@@ -77,7 +77,7 @@ const defaultCategories = [
   { name: "知识学习", color: "green", position: 5 },
 ] as const;
 
-const categoryPalette = [
+export const categoryPalette = [
   "cyan",
   "violet",
   "teal",
@@ -359,6 +359,7 @@ export async function createCategory(
 export async function renameCategory(
   name: string,
   newName: string,
+  newColor: (typeof categoryPalette)[number],
 ): Promise<{ category: MaterialCategory | null; duplicate: boolean }> {
   await ensureDatabase();
   const db = getBinding();
@@ -370,22 +371,24 @@ export async function renameCategory(
   if (!current) {
     return { category: null, duplicate: false };
   }
-  if (name === newName) {
+  if (name === newName && current.color === newColor) {
     return { category: mapCategoryRow(current), duplicate: false };
   }
 
-  const duplicate = await db
-    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-    .bind(newName)
-    .first<CategoryRow>();
-  if (duplicate) {
-    return { category: mapCategoryRow(duplicate), duplicate: true };
+  if (name !== newName) {
+    const duplicate = await db
+      .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+      .bind(newName)
+      .first<CategoryRow>();
+    if (duplicate) {
+      return { category: mapCategoryRow(duplicate), duplicate: true };
+    }
   }
 
   await db.batch([
     db
-      .prepare("UPDATE categories SET name = ? WHERE name = ?")
-      .bind(newName, name),
+      .prepare("UPDATE categories SET name = ?, color = ? WHERE name = ?")
+      .bind(newName, newColor, name),
     db
       .prepare("UPDATE items SET category = ? WHERE category = ?")
       .bind(newName, name),
@@ -396,7 +399,7 @@ export async function renameCategory(
     .bind(newName)
     .first<CategoryRow>();
   if (!renamed) {
-    throw new Error("分类重命名失败，请稍后重试");
+    throw new Error("分类更新失败，请稍后重试");
   }
 
   return { category: mapCategoryRow(renamed), duplicate: false };

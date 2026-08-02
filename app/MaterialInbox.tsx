@@ -120,6 +120,20 @@ const primaryScopes = [
 ];
 
 const SEARCH_HISTORY_KEY = "shiji.search-history";
+const CATEGORY_COLOR_OPTIONS = [
+  { value: "coral", label: "珊瑚红" },
+  { value: "blue", label: "海蓝" },
+  { value: "purple", label: "紫罗兰" },
+  { value: "amber", label: "琥珀黄" },
+  { value: "pink", label: "玫粉" },
+  { value: "green", label: "草绿" },
+  { value: "cyan", label: "青蓝" },
+  { value: "violet", label: "靛紫" },
+  { value: "teal", label: "蓝绿" },
+  { value: "lime", label: "青柠" },
+  { value: "orange", label: "橙色" },
+  { value: "red", label: "红色" },
+] as const;
 const GENERAL_DEFAULT_COVER = "/default-cover.jpg";
 const CATEGORY_DEFAULT_COVERS: Record<string, string> = {
   灵感收集: "/default-covers/inspiration.jpg",
@@ -187,6 +201,7 @@ export function MaterialInbox() {
   const [addingCategory, setAddingCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryRenameDraft, setCategoryRenameDraft] = useState("");
+  const [categoryColorDraft, setCategoryColorDraft] = useState("cyan");
   const [renamingCategory, setRenamingCategory] = useState(false);
   const [refreshingPreviewIds, setRefreshingPreviewIds] = useState<Set<string>>(
     () => new Set(),
@@ -235,6 +250,7 @@ export function MaterialInbox() {
         setCategoryName("");
         setEditingCategory(null);
         setCategoryRenameDraft("");
+        setCategoryColorDraft("cyan");
       }
     };
     const handlePaste = (event: ClipboardEvent) => {
@@ -538,17 +554,19 @@ export function MaterialInbox() {
     }
   }
 
-  function beginCategoryRename(name: string) {
+  function beginCategoryRename(category: MaterialCategory) {
     setCategoryEditorOpen(false);
     setCategoryName("");
-    setEditingCategory(name);
-    setCategoryRenameDraft(name);
+    setEditingCategory(category.name);
+    setCategoryRenameDraft(category.name);
+    setCategoryColorDraft(category.color);
     window.setTimeout(() => categoryRenameRef.current?.select(), 40);
   }
 
   function cancelCategoryRename() {
     setEditingCategory(null);
     setCategoryRenameDraft("");
+    setCategoryColorDraft("cyan");
   }
 
   async function submitCategoryRename(event: FormEvent<HTMLFormElement>) {
@@ -556,13 +574,16 @@ export function MaterialInbox() {
     if (!editingCategory) return;
 
     const previousName = editingCategory;
+    const previousColor = categories.find(
+      (category) => category.name === previousName,
+    )?.color;
     const newName = categoryRenameDraft.trim().replace(/\s+/g, " ");
     if (!newName) {
       setToast("分类名称不能为空");
       categoryRenameRef.current?.focus();
       return;
     }
-    if (newName === previousName) {
+    if (newName === previousName && categoryColorDraft === previousColor) {
       cancelCategoryRename();
       return;
     }
@@ -572,7 +593,11 @@ export function MaterialInbox() {
       const response = await fetch("/api/categories", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: previousName, newName }),
+        body: JSON.stringify({
+          name: previousName,
+          newName,
+          color: categoryColorDraft,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -596,9 +621,15 @@ export function MaterialInbox() {
         current === previousName ? data.category.name : current,
       );
       cancelCategoryRename();
-      setToast(`已将分类重命名为“${data.category.name}”`);
+      setToast(
+        newName === previousName
+          ? `已更新“${data.category.name}”的颜色`
+          : categoryColorDraft === previousColor
+            ? `已将分类重命名为“${data.category.name}”`
+            : `已更新分类“${data.category.name}”的名称和颜色`,
+      );
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "分类重命名失败");
+      setToast(error instanceof Error ? error.message : "分类更新失败");
       categoryRenameRef.current?.focus();
     } finally {
       setRenamingCategory(false);
@@ -732,43 +763,75 @@ export function MaterialInbox() {
                       className="category-rename"
                       onSubmit={submitCategoryRename}
                     >
-                      <span
-                        className={`category-dot ${category.color}`}
-                        aria-hidden="true"
-                      />
-                      <input
-                        ref={categoryRenameRef}
-                        value={categoryRenameDraft}
-                        onChange={(event) =>
-                          setCategoryRenameDraft(event.target.value)
-                        }
-                        aria-label={`修改分类“${category.name}”的名称`}
-                        maxLength={12}
-                        autoComplete="off"
+                      <div className="category-rename-fields">
+                        <span
+                          className={`category-dot ${categoryColorDraft}`}
+                          aria-hidden="true"
+                        />
+                        <input
+                          ref={categoryRenameRef}
+                          value={categoryRenameDraft}
+                          onChange={(event) =>
+                            setCategoryRenameDraft(event.target.value)
+                          }
+                          aria-label={`修改分类“${category.name}”的名称`}
+                          maxLength={12}
+                          autoComplete="off"
+                          disabled={renamingCategory}
+                        />
+                        <button
+                          className="confirm"
+                          type="submit"
+                          aria-label="保存分类名称和颜色"
+                          disabled={
+                            renamingCategory || !categoryRenameDraft.trim()
+                          }
+                        >
+                          {renamingCategory ? (
+                            <LoaderCircle className="spin" size={13} />
+                          ) : (
+                            <Check size={13} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="取消修改分类"
+                          disabled={renamingCategory}
+                          onClick={cancelCategoryRename}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                      <fieldset
+                        className="category-color-picker"
+                        aria-label="选择分类颜色"
                         disabled={renamingCategory}
-                      />
-                      <button
-                        className="confirm"
-                        type="submit"
-                        aria-label="保存分类名称"
-                        disabled={
-                          renamingCategory || !categoryRenameDraft.trim()
-                        }
                       >
-                        {renamingCategory ? (
-                          <LoaderCircle className="spin" size={13} />
-                        ) : (
-                          <Check size={13} />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="取消修改分类名称"
-                        disabled={renamingCategory}
-                        onClick={cancelCategoryRename}
-                      >
-                        <X size={13} />
-                      </button>
+                        {CATEGORY_COLOR_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            className={
+                              categoryColorDraft === option.value
+                                ? "selected"
+                                : ""
+                            }
+                            type="button"
+                            aria-label={option.label}
+                            aria-pressed={
+                              categoryColorDraft === option.value
+                            }
+                            title={option.label}
+                            onClick={() =>
+                              setCategoryColorDraft(option.value)
+                            }
+                          >
+                            <span
+                              className={`category-dot ${option.value}`}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        ))}
+                      </fieldset>
                     </form>
                   ) : (
                     <>
@@ -795,7 +858,7 @@ export function MaterialInbox() {
                           type="button"
                           aria-label={`修改分类“${category.name}”的名称`}
                           title="重命名分类"
-                          onClick={() => beginCategoryRename(category.name)}
+                          onClick={() => beginCategoryRename(category)}
                         >
                           <MoreHorizontal size={16} />
                         </button>

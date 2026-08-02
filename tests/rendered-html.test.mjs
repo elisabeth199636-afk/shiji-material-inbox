@@ -49,6 +49,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /scrollTop > 240/);
   assert.match(client, /category-more/);
   assert.match(client, /category-rename/);
+  assert.match(client, /category-color-picker/);
+  assert.match(client, /CATEGORY_COLOR_OPTIONS/);
+  assert.match(client, /选择分类颜色/);
   assert.match(client, /重命名分类/);
   assert.match(globals, /\.mobile-menu\.icon-button\s*\{\s*display: none/);
   assert.match(client, /extractHttpUrl/);
@@ -70,11 +73,12 @@ test("builds the material inbox product surface", async () => {
   assert.match(categoriesRoute, /createCategory/);
   assert.match(categoriesRoute, /export async function PATCH/);
   assert.match(categoriesRoute, /renameCategory/);
+  assert.match(categoriesRoute, /请选择有效的分类颜色/);
   assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
   assert.match(linkPreview, /MAX_REDIRECTS/);
   assert.match(itemsSource, /SELECT color, COUNT\(\*\) AS usage/);
   assert.match(itemsSource, /usageByColor\.get\(candidate\)/);
-  assert.match(itemsSource, /UPDATE categories SET name/);
+  assert.match(itemsSource, /UPDATE categories SET name = \?, color = \?/);
   assert.match(itemsSource, /UPDATE items SET category/);
   assert.match(itemsSource, /return "Pinterest"/);
   assert.match(itemsSource, /pin\.it/);

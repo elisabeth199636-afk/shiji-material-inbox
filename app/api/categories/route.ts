@@ -1,4 +1,5 @@
 import {
+  categoryPalette,
   createCategory,
   listCategories,
   renameCategory,
@@ -50,8 +51,20 @@ export async function PATCH(request: Request) {
     const currentName = input.name.trim().replace(/\s+/g, " ");
     const validation = validateCategoryName(input?.newName);
     if ("response" in validation) return validation.response;
+    if (
+      typeof input?.color !== "string" ||
+      !categoryPalette.includes(
+        input.color as (typeof categoryPalette)[number],
+      )
+    ) {
+      return Response.json({ error: "请选择有效的分类颜色" }, { status: 400 });
+    }
 
-    const result = await renameCategory(currentName, validation.name);
+    const result = await renameCategory(
+      currentName,
+      validation.name,
+      input.color as (typeof categoryPalette)[number],
+    );
     if (!result.category) {
       return Response.json({ error: "这个分类不存在" }, { status: 404 });
     }
