@@ -898,69 +898,18 @@ img {
   font-size: 10px;
 }
 
-.link-preview {
+.default-preview {
   position: relative;
-  display: flex;
   width: 100%;
   height: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 13px;
-  padding: 20px;
-  background:
-    radial-gradient(circle at 18% 16%, oklch(0.76 0.16 285 / 0.45), transparent 38%),
-    linear-gradient(145deg, oklch(0.27 0.08 280), oklch(0.15 0.03 270));
-  color: oklch(0.98 0 0);
-}
-
-.link-preview.red {
-  background:
-    radial-gradient(circle at 20% 12%, oklch(0.78 0.18 24 / 0.55), transparent 42%),
-    linear-gradient(145deg, oklch(0.34 0.15 25), oklch(0.18 0.04 20));
-}
-
-.link-preview.bilibili {
-  background:
-    radial-gradient(circle at 20% 12%, oklch(0.8 0.1 225 / 0.58), transparent 40%),
-    linear-gradient(145deg, oklch(0.42 0.11 230), oklch(0.19 0.04 245));
-}
-
-.link-preview.ai {
-  background:
-    radial-gradient(circle at 78% 18%, oklch(0.74 0.14 195 / 0.48), transparent 35%),
-    linear-gradient(145deg, oklch(0.26 0.11 285), oklch(0.12 0.025 255));
-}
-
-.link-preview-mark {
-  display: grid;
-  width: 50px;
-  height: 50px;
-  place-items: center;
-  border: 1px solid oklch(1 0 0 / 0.28);
-  border-radius: 12px;
-  background: oklch(1 0 0 / 0.12);
-  font-size: 14px;
-  font-weight: 750;
-  backdrop-filter: blur(5px);
-}
-
-.link-preview-copy strong,
-.link-preview-copy span {
-  display: block;
-}
-
-.link-preview-copy strong {
-  max-width: 130px;
   overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: oklch(0.22 0.02 270);
 }
 
-.link-preview-copy span {
-  margin-top: 5px;
-  color: oklch(0.9 0.015 280);
-  font-size: 10px;
+.default-preview > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .preview-read-button {
@@ -990,17 +939,6 @@ img {
 .preview-read-button:disabled {
   cursor: wait;
   opacity: 0.72;
-}
-
-.link-preview.compact {
-  padding: 0;
-}
-
-.link-preview.compact .link-preview-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  font-size: 11px;
 }
 
 .asset-list {

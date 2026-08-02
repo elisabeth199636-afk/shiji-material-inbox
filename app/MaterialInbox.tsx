@@ -117,6 +117,8 @@ const primaryScopes = [
   { id: "recent", label: "最近添加", icon: Clock3 },
 ];
 
+const DEFAULT_COVER = "/demo/workspace.jpg";
+
 function formatDate(value: string) {
   const date = new Date(value);
   const today = new Date();
@@ -140,14 +142,6 @@ function getHostname(url: string) {
   } catch {
     return url;
   }
-}
-
-function platformClass(platform: string) {
-  if (platform.includes("抖音")) return "douyin";
-  if (platform.includes("小红书")) return "red";
-  if (platform.includes("B站")) return "bilibili";
-  if (platform.includes("AI")) return "ai";
-  return "web";
 }
 
 export function MaterialInbox() {
@@ -1018,44 +1012,37 @@ function PreviewVisual({
   }
 
   return (
-    <LinkPreview
-      item={item}
+    <DefaultPreview
+      alt={alt}
       compact={compact}
       refreshing={refreshing}
+      previewChecked={Boolean(item.previewCheckedAt)}
       onRefresh={onRefresh}
     />
   );
 }
 
-function LinkPreview({
-  item,
+function DefaultPreview({
+  alt,
   compact = false,
   refreshing = false,
+  previewChecked = false,
   onRefresh,
 }: {
-  item: MaterialItem;
+  alt: string;
   compact?: boolean;
   refreshing?: boolean;
+  previewChecked?: boolean;
   onRefresh?: () => void;
 }) {
   return (
-    <div
-      className={`link-preview ${platformClass(item.platform)} ${compact ? "compact" : ""}`}
-    >
-      <div className="link-preview-mark">
-        {item.platform.slice(0, compact ? 1 : 2)}
-      </div>
-      {!compact && (
-        <div className="link-preview-copy">
-          <strong>{getHostname(item.url)}</strong>
-          <span>{refreshing ? "正在读取预览" : "网页收藏"}</span>
-        </div>
-      )}
+    <div className={`default-preview ${compact ? "compact" : ""}`}>
+      <img src={DEFAULT_COVER} alt={alt} loading="lazy" />
       {!compact && onRefresh && (
         <button
           className="preview-read-button"
           type="button"
-          aria-label={`读取“${item.title}”的链接预览`}
+          aria-label="重新读取链接预览"
           disabled={refreshing}
           onClick={(event) => {
             event.stopPropagation();
@@ -1065,7 +1052,7 @@ function LinkPreview({
           <RefreshCw className={refreshing ? "spin" : ""} size={13} />
           {refreshing
             ? "读取中"
-            : item.previewCheckedAt
+            : previewChecked
               ? "重试预览"
               : "读取预览"}
         </button>
