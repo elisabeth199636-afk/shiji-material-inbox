@@ -837,10 +837,92 @@ img {
 }
 
 .field > span:first-child,
+.field > label,
 .detail-label {
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
+}
+
+.tag-input-wrap {
+  position: relative;
+}
+
+.tag-input-wrap:focus-within {
+  z-index: var(--z-dropdown);
+}
+
+.tag-suggestions {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  overflow: auto;
+  max-height: 220px;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  animation: tag-suggestions-in 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tag-suggestions-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.tag-suggestions-heading {
+  display: block;
+  padding: 5px 8px 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.tag-suggestions button,
+.detail-tags .tag-suggestions button {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+}
+
+.tag-suggestions button:hover,
+.tag-suggestions button.active,
+.tag-suggestions button:focus-visible,
+.detail-tags .tag-suggestions button:hover,
+.detail-tags .tag-suggestions button.active,
+.detail-tags .tag-suggestions button:focus-visible {
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
+
+.tag-suggestions button > span {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.tag-suggestions button strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-suggestions.compact {
+  right: auto;
+  width: 180px;
 }
 
 .field input,
@@ -1502,6 +1584,16 @@ img {
   font-size: 10px;
 }
 
+.detail-tag-input {
+  flex: 1 1 110px;
+  min-width: 110px;
+  max-width: 180px;
+}
+
+.detail-tags .detail-tag-input > input {
+  width: 100%;
+}
+
 .notes-editor {
   min-height: 105px;
   padding: 9px 10px;
@@ -1712,8 +1804,14 @@ img {
     grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 1fr) 140px auto;
   }
 
-  .capture-form .field:last-of-type {
-    display: none;
+  .capture-form .field-tags {
+    grid-row: 2;
+    grid-column: 1 / -2;
+  }
+
+  .capture-form .save-button {
+    grid-row: 2;
+    grid-column: -2 / -1;
   }
 }
 
@@ -1830,11 +1928,15 @@ img {
     grid-column: 1 / -1;
   }
 
-  .capture-form .field:nth-of-type(2) {
+  .capture-form .field-title,
+  .capture-form .field-category,
+  .capture-form .field-tags {
+    grid-row: auto;
     grid-column: 1 / -1;
   }
 
   .capture-form .save-button {
+    grid-row: auto;
     grid-column: 1 / -1;
   }
 

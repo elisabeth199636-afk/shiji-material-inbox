@@ -151,6 +151,58 @@ function getDefaultCover(category: string) {
   return CATEGORY_DEFAULT_COVERS[category] ?? GENERAL_DEFAULT_COVER;
 }
 
+function normalizeTag(value: string) {
+  return value.trim().replace(/^#+/, "").replace(/\s+/g, " ");
+}
+
+function parseTagInput(value: string) {
+  return value
+    .split(/[,，、]/)
+    .map(normalizeTag)
+    .filter(Boolean);
+}
+
+function getCurrentTagDraft(value: string) {
+  const parts = value.split(/[,，、]/);
+  return normalizeTag(parts[parts.length - 1] ?? "");
+}
+
+function getCommittedTags(value: string) {
+  const parts = value.split(/[,，、]/);
+  return parts.slice(0, -1).map(normalizeTag).filter(Boolean);
+}
+
+function getTagSuggestions(
+  knownTags: string[],
+  draft: string,
+  excludedTags: string[],
+) {
+  const query = normalizeTag(draft).toLocaleLowerCase("zh-CN");
+  if (!query) return [];
+  const excluded = new Set(
+    excludedTags.map((tag) => tag.toLocaleLowerCase("zh-CN")),
+  );
+  return knownTags
+    .filter((tag) => {
+      const normalized = tag.toLocaleLowerCase("zh-CN");
+      return normalized.startsWith(query) && !excluded.has(normalized);
+    })
+    .slice(0, 6);
+}
+
+function replaceCurrentTag(value: string, selectedTag: string) {
+  const nextTags = [...getCommittedTags(value), normalizeTag(selectedTag)];
+  const uniqueTags = nextTags.filter(
+    (tag, index) =>
+      nextTags.findIndex(
+        (candidate) =>
+          candidate.toLocaleLowerCase("zh-CN") ===
+          tag.toLocaleLowerCase("zh-CN"),
+      ) === index,
+  );
+  return uniqueTags.join("，");
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
   const today = new Date();
@@ -193,6 +245,9 @@ export function MaterialInbox() {
   const [captureTitle, setCaptureTitle] = useState("");
   const [captureCategory, setCaptureCategory] = useState("收件箱");
   const [captureTags, setCaptureTags] = useState("");
+  const [captureTagSuggestionsOpen, setCaptureTagSuggestionsOpen] =
+    useState(false);
+  const [captureTagActiveIndex, setCaptureTagActiveIndex] = useState(0);
   const [adding, setAdding] = useState(false);
   const [categories, setCategories] =
     useState<MaterialCategory[]>(initialCategories);
@@ -209,6 +264,7 @@ export function MaterialInbox() {
   const [toast, setToast] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const captureUrlRef = useRef<HTMLInputElement>(null);
+  const captureTagsRef = useRef<HTMLInputElement>(null);
   const categoryNameRef = useRef<HTMLInputElement>(null);
   const categoryRenameRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
@@ -251,6 +307,7 @@ export function MaterialInbox() {
         setEditingCategory(null);
         setCategoryRenameDraft("");
         setCategoryColorDraft("cyan");
+        setCaptureTagSuggestionsOpen(false);
       }
     };
     const handlePaste = (event: ClipboardEvent) => {
@@ -292,6 +349,44 @@ export function MaterialInbox() {
         ...categories.map((category) => [category.name, category.color]),
       ]) as Record<string, string>,
     [categories],
+  );
+
+  const knownTags = useMemo(() => {
+    const stats = new Map<
+      string,
+      { label: string; count: number; recentIndex: number }
+    >();
+    items.forEach((item, itemIndex) => {
+      item.tags.forEach((rawTag) => {
+        const label = normalizeTag(rawTag);
+        if (!label) return;
+        const key = label.toLocaleLowerCase("zh-CN");
+        const current = stats.get(key);
+        stats.set(key, {
+          label: current?.label ?? label,
+          count: (current?.count ?? 0) + 1,
+          recentIndex: Math.min(current?.recentIndex ?? itemIndex, itemIndex),
+        });
+      });
+    });
+    return Array.from(stats.values())
+      .sort(
+        (first, second) =>
+          second.count - first.count ||
+          first.recentIndex - second.recentIndex ||
+          first.label.localeCompare(second.label, "zh-CN"),
+      )
+      .map((entry) => entry.label);
+  }, [items]);
+
+  const captureTagSuggestions = useMemo(
+    () =>
+      getTagSuggestions(
+        knownTags,
+        getCurrentTagDraft(captureTags),
+        getCommittedTags(captureTags),
+      ),
+    [captureTags, knownTags],
   );
 
   const counts = useMemo(() => {
@@ -379,6 +474,53 @@ export function MaterialInbox() {
     }
   }
 
+  function chooseCaptureTag(tag: string) {
+    setCaptureTags((current) => replaceCurrentTag(current, tag));
+    setCaptureTagSuggestionsOpen(false);
+    setCaptureTagActiveIndex(0);
+    window.setTimeout(() => captureTagsRef.current?.focus(), 0);
+  }
+
+  function handleCaptureTagKeyDown(
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) {
+    if (event.key === "ArrowDown" && captureTagSuggestions.length > 0) {
+      event.preventDefault();
+      setCaptureTagSuggestionsOpen(true);
+      setCaptureTagActiveIndex(
+        (current) => (current + 1) % captureTagSuggestions.length,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp" && captureTagSuggestions.length > 0) {
+      event.preventDefault();
+      setCaptureTagSuggestionsOpen(true);
+      setCaptureTagActiveIndex(
+        (current) =>
+          (current - 1 + captureTagSuggestions.length) %
+          captureTagSuggestions.length,
+      );
+      return;
+    }
+    if (
+      event.key === "Enter" &&
+      captureTagSuggestionsOpen &&
+      captureTagSuggestions.length > 0
+    ) {
+      event.preventDefault();
+      chooseCaptureTag(
+        captureTagSuggestions[
+          Math.min(captureTagActiveIndex, captureTagSuggestions.length - 1)
+        ],
+      );
+      return;
+    }
+    if (event.key === "Escape") {
+      if (captureTagSuggestionsOpen) event.stopPropagation();
+      setCaptureTagSuggestionsOpen(false);
+    }
+  }
+
   async function loadItems() {
     try {
       const [itemsResponse, categoriesResponse] = await Promise.all([
@@ -448,10 +590,7 @@ export function MaterialInbox() {
           url: extractedUrl,
           title: captureTitle.trim(),
           category: captureCategory,
-          tags: captureTags
-            .split(/[,，、]/)
-            .map((tag) => tag.trim())
-            .filter(Boolean),
+          tags: parseTagInput(captureTags),
           captureMethod: "网页粘贴",
           device: "网页",
         }),
@@ -467,6 +606,8 @@ export function MaterialInbox() {
       setCaptureUrl("");
       setCaptureTitle("");
       setCaptureTags("");
+      setCaptureTagSuggestionsOpen(false);
+      setCaptureTagActiveIndex(0);
       setCaptureCategory("收件箱");
       setCaptureOpen(false);
       if (!data.item.thumbnail && !data.item.previewCheckedAt) {
@@ -1042,7 +1183,7 @@ export function MaterialInbox() {
                   autoComplete="off"
                 />
               </label>
-              <label className="field">
+              <label className="field field-title">
                 <span>标题（可选）</span>
                 <input
                   value={captureTitle}
@@ -1050,7 +1191,7 @@ export function MaterialInbox() {
                   placeholder="不填则使用来源生成"
                 />
               </label>
-              <label className="field">
+              <label className="field field-category">
                 <span>分类</span>
                 <span className="select-wrap">
                   <select
@@ -1067,14 +1208,64 @@ export function MaterialInbox() {
                   <ChevronDown size={15} />
                 </span>
               </label>
-              <label className="field">
-                <span>标签（可选）</span>
+              <div
+                className="field field-tags tag-input-wrap"
+                onBlur={(event) => {
+                  if (
+                    !event.currentTarget.contains(
+                      event.relatedTarget as Node | null,
+                    )
+                  ) {
+                    setCaptureTagSuggestionsOpen(false);
+                  }
+                }}
+              >
+                <label htmlFor="capture-tags">标签（可选）</label>
                 <input
+                  ref={captureTagsRef}
+                  id="capture-tags"
                   value={captureTags}
-                  onChange={(event) => setCaptureTags(event.target.value)}
-                  placeholder="用逗号分隔"
+                  onFocus={() =>
+                    setCaptureTagSuggestionsOpen(
+                      captureTagSuggestions.length > 0,
+                    )
+                  }
+                  onChange={(event) => {
+                    setCaptureTags(event.target.value);
+                    setCaptureTagActiveIndex(0);
+                    setCaptureTagSuggestionsOpen(
+                      Boolean(getCurrentTagDraft(event.target.value)),
+                    );
+                  }}
+                  onKeyDown={handleCaptureTagKeyDown}
+                  placeholder="输入标签或用逗号分隔"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={
+                    captureTagSuggestionsOpen &&
+                    captureTagSuggestions.length > 0
+                  }
+                  aria-controls="capture-tag-suggestions"
+                  aria-activedescendant={
+                    captureTagSuggestionsOpen &&
+                    captureTagSuggestions.length > 0
+                      ? `capture-tag-option-${captureTagActiveIndex}`
+                      : undefined
+                  }
+                  autoComplete="off"
                 />
-              </label>
+                {captureTagSuggestionsOpen &&
+                  captureTagSuggestions.length > 0 && (
+                    <TagSuggestionMenu
+                      id="capture-tag-suggestions"
+                      optionIdPrefix="capture-tag-option"
+                      suggestions={captureTagSuggestions}
+                      activeIndex={captureTagActiveIndex}
+                      onActiveIndexChange={setCaptureTagActiveIndex}
+                      onSelect={chooseCaptureTag}
+                    />
+                  )}
+              </div>
               <button
                 className="save-button"
                 type="submit"
@@ -1230,6 +1421,7 @@ export function MaterialInbox() {
             item={selected}
             categories={categories}
             categoryColors={categoryColors}
+            knownTags={knownTags}
             refreshingPreview={refreshingPreviewIds.has(selected.id)}
             onClose={() => setInspectorOpen(false)}
             onPatch={(patch) => patchItem(selected.id, patch)}
@@ -1454,6 +1646,7 @@ function Inspector({
   item,
   categories,
   categoryColors,
+  knownTags,
   refreshingPreview,
   onClose,
   onPatch,
@@ -1463,6 +1656,7 @@ function Inspector({
   item: MaterialItem;
   categories: MaterialCategory[];
   categoryColors: Record<string, string>;
+  knownTags: string[];
   refreshingPreview: boolean;
   onClose: () => void;
   onPatch: (patch: PatchMaterial) => void;
@@ -1470,12 +1664,59 @@ function Inspector({
   onRefreshPreview: () => void;
 }) {
   const [tagDraft, setTagDraft] = useState("");
+  const [tagSuggestionsOpen, setTagSuggestionsOpen] = useState(false);
+  const [tagActiveIndex, setTagActiveIndex] = useState(0);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagSuggestions = useMemo(
+    () => getTagSuggestions(knownTags, tagDraft, item.tags),
+    [item.tags, knownTags, tagDraft],
+  );
 
-  function addTag(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter" || !tagDraft.trim()) return;
-    event.preventDefault();
-    onPatch({ tags: [...item.tags, tagDraft.trim()] });
+  function commitTag(value: string) {
+    const tag = normalizeTag(value);
+    if (!tag) return;
+    const duplicate = item.tags.some(
+      (itemTag) =>
+        itemTag.toLocaleLowerCase("zh-CN") === tag.toLocaleLowerCase("zh-CN"),
+    );
+    if (!duplicate) onPatch({ tags: [...item.tags, tag] });
     setTagDraft("");
+    setTagSuggestionsOpen(false);
+    setTagActiveIndex(0);
+    window.setTimeout(() => tagInputRef.current?.focus(), 0);
+  }
+
+  function handleTagKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" && tagSuggestions.length > 0) {
+      event.preventDefault();
+      setTagSuggestionsOpen(true);
+      setTagActiveIndex((current) => (current + 1) % tagSuggestions.length);
+      return;
+    }
+    if (event.key === "ArrowUp" && tagSuggestions.length > 0) {
+      event.preventDefault();
+      setTagSuggestionsOpen(true);
+      setTagActiveIndex(
+        (current) =>
+          (current - 1 + tagSuggestions.length) % tagSuggestions.length,
+      );
+      return;
+    }
+    if (event.key === "Enter" && tagDraft.trim()) {
+      event.preventDefault();
+      const selectedSuggestion =
+        tagSuggestionsOpen && tagSuggestions.length > 0
+          ? tagSuggestions[
+              Math.min(tagActiveIndex, tagSuggestions.length - 1)
+            ]
+          : tagDraft;
+      commitTag(selectedSuggestion);
+      return;
+    }
+    if (event.key === "Escape") {
+      if (tagSuggestionsOpen) event.stopPropagation();
+      setTagSuggestionsOpen(false);
+    }
   }
 
   return (
@@ -1570,13 +1811,59 @@ function Inspector({
                 <X size={12} />
               </button>
             ))}
-            <input
-              id={`tags-${item.id}`}
-              value={tagDraft}
-              onChange={(event) => setTagDraft(event.target.value)}
-              onKeyDown={addTag}
-              placeholder="+ 添加标签"
-            />
+            <div
+              className="detail-tag-input tag-input-wrap"
+              onBlur={(event) => {
+                if (
+                  !event.currentTarget.contains(
+                    event.relatedTarget as Node | null,
+                  )
+                ) {
+                  setTagSuggestionsOpen(false);
+                }
+              }}
+            >
+              <input
+                ref={tagInputRef}
+                id={`tags-${item.id}`}
+                value={tagDraft}
+                onFocus={() =>
+                  setTagSuggestionsOpen(tagSuggestions.length > 0)
+                }
+                onChange={(event) => {
+                  setTagDraft(event.target.value);
+                  setTagActiveIndex(0);
+                  setTagSuggestionsOpen(
+                    Boolean(normalizeTag(event.target.value)),
+                  );
+                }}
+                onKeyDown={handleTagKeyDown}
+                placeholder="+ 添加标签"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={
+                  tagSuggestionsOpen && tagSuggestions.length > 0
+                }
+                aria-controls={`detail-tag-suggestions-${item.id}`}
+                aria-activedescendant={
+                  tagSuggestionsOpen && tagSuggestions.length > 0
+                    ? `detail-tag-option-${item.id}-${tagActiveIndex}`
+                    : undefined
+                }
+                autoComplete="off"
+              />
+              {tagSuggestionsOpen && tagSuggestions.length > 0 && (
+                <TagSuggestionMenu
+                  id={`detail-tag-suggestions-${item.id}`}
+                  optionIdPrefix={`detail-tag-option-${item.id}`}
+                  suggestions={tagSuggestions}
+                  activeIndex={tagActiveIndex}
+                  onActiveIndexChange={setTagActiveIndex}
+                  onSelect={commitTag}
+                  compact
+                />
+              )}
+            </div>
           </div>
         </section>
 
@@ -1633,6 +1920,50 @@ function Inspector({
         </button>
       </div>
     </>
+  );
+}
+
+function TagSuggestionMenu({
+  id,
+  optionIdPrefix,
+  suggestions,
+  activeIndex,
+  onActiveIndexChange,
+  onSelect,
+  compact = false,
+}: {
+  id: string;
+  optionIdPrefix: string;
+  suggestions: string[];
+  activeIndex: number;
+  onActiveIndexChange: (index: number) => void;
+  onSelect: (tag: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`tag-suggestions ${compact ? "compact" : ""}`}
+      id={id}
+      role="listbox"
+      aria-label="历史标签"
+    >
+      <span className="tag-suggestions-heading">历史标签</span>
+      {suggestions.map((tag, index) => (
+        <button
+          key={tag}
+          id={`${optionIdPrefix}-${index}`}
+          className={activeIndex === index ? "active" : ""}
+          type="button"
+          role="option"
+          aria-selected={activeIndex === index}
+          onMouseEnter={() => onActiveIndexChange(index)}
+          onClick={() => onSelect(tag)}
+        >
+          <span aria-hidden="true">#</span>
+          <strong>{tag}</strong>
+        </button>
+      ))}
+    </div>
   );
 }
 

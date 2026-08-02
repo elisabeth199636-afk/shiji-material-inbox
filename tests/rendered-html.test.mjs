@@ -44,6 +44,14 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /最近搜索/);
   assert.match(client, /清空记录/);
   assert.match(client, /shiji\.search-history/);
+  assert.match(client, /knownTags/);
+  assert.match(client, /getTagSuggestions/);
+  assert.match(client, /startsWith\(query\)/);
+  assert.match(client, /TagSuggestionMenu/);
+  assert.match(client, /历史标签/);
+  assert.match(client, /aria-autocomplete="list"/);
+  assert.match(client, /capture-tag-suggestions/);
+  assert.match(client, /detail-tag-suggestions/);
   assert.match(client, /back-to-top/);
   assert.match(client, /回到素材列表顶部/);
   assert.match(client, /scrollTop > 240/);
@@ -54,6 +62,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /选择分类颜色/);
   assert.match(client, /重命名分类/);
   assert.match(globals, /\.mobile-menu\.icon-button\s*\{\s*display: none/);
+  assert.match(globals, /\.tag-suggestions/);
+  assert.match(globals, /\.capture-form \.field-tags/);
+  assert.doesNotMatch(globals, /\.capture-form \.field:last-of-type/);
   assert.match(client, /extractHttpUrl/);
   assert.match(client, /const GENERAL_DEFAULT_COVER = "\/default-cover\.jpg"/);
   assert.match(client, /CATEGORY_DEFAULT_COVERS/);
