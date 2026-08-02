@@ -117,7 +117,7 @@ const primaryScopes = [
   { id: "recent", label: "最近添加", icon: Clock3 },
 ];
 
-const DEFAULT_COVER = "/demo/workspace.jpg";
+const DEFAULT_COVER = "/default-cover.jpg";
 
 function formatDate(value: string) {
   const date = new Date(value);

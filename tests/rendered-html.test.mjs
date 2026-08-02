@@ -34,7 +34,7 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /\/api\/items\/preview/);
   assert.match(client, /输入分类名称/);
   assert.match(client, /读取预览/);
-  assert.match(client, /const DEFAULT_COVER = "\/demo\/workspace\.jpg"/);
+  assert.match(client, /const DEFAULT_COVER = "\/default-cover\.jpg"/);
   assert.match(client, /<DefaultPreview/);
   assert.match(categoriesRoute, /createCategory/);
   assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
