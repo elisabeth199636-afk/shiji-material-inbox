@@ -38,6 +38,8 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /\/api\/items\/preview/);
   assert.match(client, /输入分类名称/);
   assert.match(client, /读取预览/);
+  assert.match(client, /已从分享文案中识别出链接/);
+  assert.match(client, /extractHttpUrl/);
   assert.match(client, /const GENERAL_DEFAULT_COVER = "\/default-cover\.jpg"/);
   assert.match(client, /CATEGORY_DEFAULT_COVERS/);
   for (const cover of [

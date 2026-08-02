@@ -33,6 +33,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { extractHttpUrl } from "../lib/link-input";
 
 type MaterialItem = {
   id: string;
@@ -220,8 +221,10 @@ export function MaterialInbox() {
         return;
       }
       const value = event.clipboardData?.getData("text/plain").trim() ?? "";
-      if (/^https?:\/\//i.test(value)) {
-        setCaptureUrl(value);
+      const extractedUrl = extractHttpUrl(value);
+      if (extractedUrl) {
+        event.preventDefault();
+        setCaptureUrl(extractedUrl);
         setCaptureOpen(true);
         window.setTimeout(() => captureUrlRef.current?.focus(), 80);
       }
@@ -350,8 +353,9 @@ export function MaterialInbox() {
 
   async function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!captureUrl.trim()) {
-      setToast("请先粘贴一个链接");
+    const extractedUrl = extractHttpUrl(captureUrl);
+    if (!extractedUrl) {
+      setToast("没有识别到链接，请粘贴网址或完整分享文案");
       captureUrlRef.current?.focus();
       return;
     }
@@ -361,7 +365,7 @@ export function MaterialInbox() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: captureUrl.trim(),
+          url: extractedUrl,
           title: captureTitle.trim(),
           category: captureCategory,
           tags: captureTags
@@ -680,8 +684,8 @@ export function MaterialInbox() {
                 <Link2 size={18} />
               </div>
               <div>
-                <strong>把链接放进素材库</strong>
-                <p>先保存，分类和标签都可以稍后补充。</p>
+                <strong>把链接或分享文案放进素材库</strong>
+                <p>支持从小红书等平台的整段分享文字中自动提取网址。</p>
               </div>
               <button
                 className="icon-button"
@@ -693,13 +697,24 @@ export function MaterialInbox() {
             </div>
             <form onSubmit={addItem} className="capture-form">
               <label className="field field-url">
-                <span>素材链接</span>
+                <span>素材链接或分享文案</span>
                 <input
                   ref={captureUrlRef}
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={captureUrl}
                   onChange={(event) => setCaptureUrl(event.target.value)}
-                  placeholder="粘贴抖音、小红书、B站或任意网页链接"
+                  onPaste={(event) => {
+                    const pastedText = event.clipboardData.getData("text/plain");
+                    const extractedUrl = extractHttpUrl(pastedText);
+                    if (!extractedUrl) return;
+                    event.preventDefault();
+                    setCaptureUrl(extractedUrl);
+                    if (pastedText.trim() !== extractedUrl) {
+                      setToast("已从分享文案中识别出链接");
+                    }
+                  }}
+                  placeholder="粘贴小红书整段分享文案，或任意网页链接"
                   autoComplete="off"
                 />
               </label>

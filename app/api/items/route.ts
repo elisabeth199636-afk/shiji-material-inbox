@@ -4,6 +4,7 @@ import {
   listItems,
   updateItem,
 } from "../../../db/items";
+import { extractHttpUrl } from "../../../lib/link-input";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,14 @@ export async function POST(request: Request) {
     if (!input?.url || typeof input.url !== "string") {
       return Response.json({ error: "请粘贴需要保存的链接" }, { status: 400 });
     }
-    const result = await createItem(input);
+    const extractedUrl = extractHttpUrl(input.url);
+    if (!extractedUrl) {
+      return Response.json(
+        { error: "分享内容中没有识别到 http 或 https 链接" },
+        { status: 400 },
+      );
+    }
+    const result = await createItem({ ...input, url: extractedUrl });
     return Response.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     return errorResponse(error);

@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { extractHttpUrl } from "../lib/link-input";
 import { fetchLinkPreview, fetchPreviewImage } from "./link-preview";
 
 export type MaterialItem = {
@@ -368,7 +369,11 @@ export async function createItem(
 ): Promise<{ item: MaterialItem; duplicate: boolean }> {
   await ensureDatabase();
   const db = getBinding();
-  const normalizedUrl = normalizeUrl(input.url);
+  const sourceUrl = extractHttpUrl(input.url);
+  if (!sourceUrl) {
+    throw new Error("分享内容中没有识别到 http 或 https 链接");
+  }
+  const normalizedUrl = normalizeUrl(sourceUrl);
   const existing = await db
     .prepare("SELECT * FROM items WHERE normalized_url = ? LIMIT 1")
     .bind(normalizedUrl)
@@ -379,12 +384,12 @@ export async function createItem(
   }
 
   const id = crypto.randomUUID();
-  const platform = detectPlatform(input.url);
-  const hostname = new URL(input.url).hostname.replace(/^www\./, "");
+  const platform = detectPlatform(sourceUrl);
+  const hostname = new URL(sourceUrl).hostname.replace(/^www\./, "");
   const createdAt = new Date().toISOString();
   const item: MaterialItem = {
     id,
-    url: input.url,
+    url: sourceUrl,
     normalizedUrl,
     title: input.title?.trim() || `来自 ${platform || hostname} 的新素材`,
     platform,
