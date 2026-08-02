@@ -47,6 +47,8 @@ test("builds the material inbox product surface", async () => {
     assert.match(client, new RegExp(`/default-covers/${cover}`));
   }
   assert.match(client, /<DefaultPreview/);
+  assert.match(client, /card-category-badge/);
+  assert.match(client, /categoryColor=\{categoryColors\[item\.category\]/);
   assert.match(categoriesRoute, /createCategory/);
   assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
   assert.match(previewRoute, /refreshItemPreview/);

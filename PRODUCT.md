@@ -51,3 +51,5 @@ product
 - 知识学习：https://unsplash.com/photos/creative-artists-studio-with-easel-painting-and-art-supplies-QnYqq6tlVq8
 
 收件箱和用户自定义分类继续使用通用桌面工作区封面。
+
+网格首页的每张素材卡片在封面左上角显示分类色点和分类名称，颜色与左侧分类导航保持一致。

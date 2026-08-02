@@ -815,6 +815,7 @@ export function MaterialInbox() {
                   key={item.id}
                   item={item}
                   index={index}
+                  categoryColor={categoryColors[item.category] || "violet"}
                   selected={selectedId === item.id}
                   onSelect={() => {
                     setSelectedId(item.id);
@@ -893,6 +894,7 @@ export function MaterialInbox() {
 function AssetCard({
   item,
   index,
+  categoryColor,
   selected,
   onSelect,
   onFavorite,
@@ -901,6 +903,7 @@ function AssetCard({
 }: {
   item: MaterialItem;
   index: number;
+  categoryColor: string;
   selected: boolean;
   onSelect: () => void;
   onFavorite: () => void;
@@ -919,6 +922,10 @@ function AssetCard({
           refreshing={refreshingPreview}
           onRefresh={onRefreshPreview}
         />
+        <span className="card-category-badge">
+          <span className={`category-dot ${categoryColor}`} />
+          <span>{item.category}</span>
+        </span>
         <span className="platform-badge">{item.platform}</span>
         <button
           className={`favorite-button ${item.favorite ? "active" : ""}`}

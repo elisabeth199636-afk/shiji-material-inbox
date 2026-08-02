@@ -806,6 +806,35 @@ img {
   transform: scale(1.018);
 }
 
+.card-category-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  max-width: calc(100% - 54px);
+  min-height: 29px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border-radius: 7px;
+  background: oklch(1 0 0 / 0.9);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 650;
+  backdrop-filter: blur(6px);
+}
+
+.card-category-badge .category-dot {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.card-category-badge > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .platform-badge {
   position: absolute;
   bottom: 8px;
