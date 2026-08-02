@@ -218,32 +218,32 @@ export async function ensureDatabase(): Promise<void> {
     db.prepare(
       "CREATE INDEX IF NOT EXISTS items_category_idx ON items(category)",
     ),
-    db.prepare(
-      "UPDATE items SET category = '灵感收集' WHERE category IN ('创作参考', '生活灵感', '想买清单')",
-    ),
-    db.prepare(
-      "UPDATE items SET category = 'AI 学习' WHERE category = 'AI 与工具'",
-    ),
-    db.prepare(
-      "UPDATE items SET category = '文字创作' WHERE category = '营销增长'",
-    ),
-    ...defaultCategories.map((category) =>
-      db
-        .prepare(`
-          INSERT OR IGNORE INTO categories (
-            name, color, position, is_default, created_at
-          ) VALUES (?, ?, ?, 1, ?)
-        `)
-        .bind(
-          category.name,
-          category.color,
-          category.position,
-          "2026-07-29T00:00:00.000Z",
-        ),
-    ),
   ]);
 
   await ensurePreviewCheckedAtColumn(db);
+
+  const categoryCount = await db
+    .prepare("SELECT COUNT(*) AS count FROM categories")
+    .first<{ count: number }>();
+
+  if ((categoryCount?.count ?? 0) === 0) {
+    await db.batch(
+      defaultCategories.map((category) =>
+        db
+          .prepare(`
+            INSERT INTO categories (
+              name, color, position, is_default, created_at
+            ) VALUES (?, ?, ?, 1, ?)
+          `)
+          .bind(
+            category.name,
+            category.color,
+            category.position,
+            "2026-07-29T00:00:00.000Z",
+          ),
+      ),
+    );
+  }
 
   const count = await db
     .prepare("SELECT COUNT(*) AS count FROM items")
@@ -354,6 +354,52 @@ export async function createCategory(
     category: mapCategoryRow(category),
     duplicate: (inserted.meta.changes ?? 0) === 0,
   };
+}
+
+export async function renameCategory(
+  name: string,
+  newName: string,
+): Promise<{ category: MaterialCategory | null; duplicate: boolean }> {
+  await ensureDatabase();
+  const db = getBinding();
+  const current = await db
+    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+    .bind(name)
+    .first<CategoryRow>();
+
+  if (!current) {
+    return { category: null, duplicate: false };
+  }
+  if (name === newName) {
+    return { category: mapCategoryRow(current), duplicate: false };
+  }
+
+  const duplicate = await db
+    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+    .bind(newName)
+    .first<CategoryRow>();
+  if (duplicate) {
+    return { category: mapCategoryRow(duplicate), duplicate: true };
+  }
+
+  await db.batch([
+    db
+      .prepare("UPDATE categories SET name = ? WHERE name = ?")
+      .bind(newName, name),
+    db
+      .prepare("UPDATE items SET category = ? WHERE category = ?")
+      .bind(newName, name),
+  ]);
+
+  const renamed = await db
+    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
+    .bind(newName)
+    .first<CategoryRow>();
+  if (!renamed) {
+    throw new Error("分类重命名失败，请稍后重试");
+  }
+
+  return { category: mapCategoryRow(renamed), duplicate: false };
 }
 
 export async function listItems(): Promise<MaterialItem[]> {

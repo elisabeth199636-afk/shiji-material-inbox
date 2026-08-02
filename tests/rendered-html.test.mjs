@@ -47,6 +47,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /back-to-top/);
   assert.match(client, /回到素材列表顶部/);
   assert.match(client, /scrollTop > 240/);
+  assert.match(client, /category-more/);
+  assert.match(client, /category-rename/);
+  assert.match(client, /重命名分类/);
   assert.match(globals, /\.mobile-menu\.icon-button\s*\{\s*display: none/);
   assert.match(client, /extractHttpUrl/);
   assert.match(client, /const GENERAL_DEFAULT_COVER = "\/default-cover\.jpg"/);
@@ -65,10 +68,14 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /card-category-badge/);
   assert.match(client, /categoryColor=\{categoryColors\[item\.category\]/);
   assert.match(categoriesRoute, /createCategory/);
+  assert.match(categoriesRoute, /export async function PATCH/);
+  assert.match(categoriesRoute, /renameCategory/);
   assert.match(categoriesRoute, /分类名称请控制在 12 个字以内/);
   assert.match(linkPreview, /MAX_REDIRECTS/);
   assert.match(itemsSource, /SELECT color, COUNT\(\*\) AS usage/);
   assert.match(itemsSource, /usageByColor\.get\(candidate\)/);
+  assert.match(itemsSource, /UPDATE categories SET name/);
+  assert.match(itemsSource, /UPDATE items SET category/);
   assert.match(itemsSource, /return "Pinterest"/);
   assert.match(itemsSource, /pin\.it/);
   for (const color of ["teal", "lime", "orange", "red"]) {

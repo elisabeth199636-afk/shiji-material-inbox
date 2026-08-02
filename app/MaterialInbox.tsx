@@ -185,6 +185,9 @@ export function MaterialInbox() {
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [categoryRenameDraft, setCategoryRenameDraft] = useState("");
+  const [renamingCategory, setRenamingCategory] = useState(false);
   const [refreshingPreviewIds, setRefreshingPreviewIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -192,6 +195,7 @@ export function MaterialInbox() {
   const searchRef = useRef<HTMLInputElement>(null);
   const captureUrlRef = useRef<HTMLInputElement>(null);
   const categoryNameRef = useRef<HTMLInputElement>(null);
+  const categoryRenameRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const refreshingPreviewIdsRef = useRef<Set<string>>(new Set());
 
@@ -229,6 +233,8 @@ export function MaterialInbox() {
         setSearchHistoryOpen(false);
         setCategoryEditorOpen(false);
         setCategoryName("");
+        setEditingCategory(null);
+        setCategoryRenameDraft("");
       }
     };
     const handlePaste = (event: ClipboardEvent) => {
@@ -532,6 +538,73 @@ export function MaterialInbox() {
     }
   }
 
+  function beginCategoryRename(name: string) {
+    setCategoryEditorOpen(false);
+    setCategoryName("");
+    setEditingCategory(name);
+    setCategoryRenameDraft(name);
+    window.setTimeout(() => categoryRenameRef.current?.select(), 40);
+  }
+
+  function cancelCategoryRename() {
+    setEditingCategory(null);
+    setCategoryRenameDraft("");
+  }
+
+  async function submitCategoryRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCategory) return;
+
+    const previousName = editingCategory;
+    const newName = categoryRenameDraft.trim().replace(/\s+/g, " ");
+    if (!newName) {
+      setToast("分类名称不能为空");
+      categoryRenameRef.current?.focus();
+      return;
+    }
+    if (newName === previousName) {
+      cancelCategoryRename();
+      return;
+    }
+
+    setRenamingCategory(true);
+    try {
+      const response = await fetch("/api/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: previousName, newName }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setCategories((current) =>
+        current.map((category) =>
+          category.name === previousName ? data.category : category,
+        ),
+      );
+      setItems((current) =>
+        current.map((item) =>
+          item.category === previousName
+            ? { ...item, category: data.category.name }
+            : item,
+        ),
+      );
+      setActiveScope((current) =>
+        current === previousName ? data.category.name : current,
+      );
+      setCaptureCategory((current) =>
+        current === previousName ? data.category.name : current,
+      );
+      cancelCategoryRename();
+      setToast(`已将分类重命名为“${data.category.name}”`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "分类重命名失败");
+      categoryRenameRef.current?.focus();
+    } finally {
+      setRenamingCategory(false);
+    }
+  }
+
   async function removeItem(item: MaterialItem) {
     const confirmed = window.confirm(`确定删除“${item.title}”吗？`);
     if (!confirmed) return;
@@ -552,6 +625,7 @@ export function MaterialInbox() {
   }
 
   function selectScope(id: string) {
+    cancelCategoryRename();
     setActiveScope(id);
     setSidebarOpen(false);
   }
@@ -645,25 +719,92 @@ export function MaterialInbox() {
           )}
 
           <div className="nav-group category-nav">
-            {categories.map((category) => (
-              <button
-                key={category.name}
-                className={`nav-item ${activeScope === category.name ? "active" : ""}`}
-                onClick={() => selectScope(category.name)}
-              >
-                <span
-                  className={`category-dot ${category.color}`}
-                  aria-hidden="true"
-                />
-                <span>{category.name}</span>
-                <em>
-                  {
-                    items.filter((item) => item.category === category.name)
-                      .length
-                  }
-                </em>
-              </button>
-            ))}
+            {categories.map((category) => {
+              const active = activeScope === category.name;
+              const editing = editingCategory === category.name;
+              return (
+                <div
+                  key={category.name}
+                  className={`category-nav-row ${active ? "active" : ""} ${editing ? "editing" : ""}`}
+                >
+                  {editing ? (
+                    <form
+                      className="category-rename"
+                      onSubmit={submitCategoryRename}
+                    >
+                      <span
+                        className={`category-dot ${category.color}`}
+                        aria-hidden="true"
+                      />
+                      <input
+                        ref={categoryRenameRef}
+                        value={categoryRenameDraft}
+                        onChange={(event) =>
+                          setCategoryRenameDraft(event.target.value)
+                        }
+                        aria-label={`修改分类“${category.name}”的名称`}
+                        maxLength={12}
+                        autoComplete="off"
+                        disabled={renamingCategory}
+                      />
+                      <button
+                        className="confirm"
+                        type="submit"
+                        aria-label="保存分类名称"
+                        disabled={
+                          renamingCategory || !categoryRenameDraft.trim()
+                        }
+                      >
+                        {renamingCategory ? (
+                          <LoaderCircle className="spin" size={13} />
+                        ) : (
+                          <Check size={13} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="取消修改分类名称"
+                        disabled={renamingCategory}
+                        onClick={cancelCategoryRename}
+                      >
+                        <X size={13} />
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        className={`nav-item ${active ? "active" : ""}`}
+                        onClick={() => selectScope(category.name)}
+                      >
+                        <span
+                          className={`category-dot ${category.color}`}
+                          aria-hidden="true"
+                        />
+                        <span>{category.name}</span>
+                        <em>
+                          {
+                            items.filter(
+                              (item) => item.category === category.name,
+                            ).length
+                          }
+                        </em>
+                      </button>
+                      {active && (
+                        <button
+                          className="category-more"
+                          type="button"
+                          aria-label={`修改分类“${category.name}”的名称`}
+                          title="重命名分类"
+                          onClick={() => beginCategoryRename(category.name)}
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="nav-section-heading">
