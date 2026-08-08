@@ -535,7 +535,11 @@ export function MaterialInbox() {
       if (!categoriesResponse.ok) throw new Error(categoriesData.error);
       setItems(itemsData.items);
       setCategories(categoriesData.categories);
-      setSelectedId((current) => current ?? itemsData.items[0]?.id ?? null);
+      const compactViewport = window.matchMedia("(max-width: 980px)").matches;
+      setSelectedId((current) =>
+        current ?? (compactViewport ? null : itemsData.items[0]?.id ?? null),
+      );
+      if (compactViewport) setInspectorOpen(false);
       const previewsToRead = (itemsData.items as MaterialItem[])
         .filter((item) => !item.thumbnail && !item.previewCheckedAt)
         .slice(0, 4);
@@ -1143,6 +1147,15 @@ export function MaterialInbox() {
         </header>
 
         {captureOpen && (
+          <button
+            className="capture-mobile-scrim"
+            type="button"
+            aria-label="关闭添加素材面板"
+            onClick={() => setCaptureOpen(false)}
+          />
+        )}
+
+        {captureOpen && (
           <section className="capture-tray" aria-label="添加新素材">
             <div className="capture-heading">
               <div className="capture-icon">
@@ -1436,6 +1449,69 @@ export function MaterialInbox() {
           </div>
         )}
       </aside>
+
+      <nav className="mobile-bottom-nav" aria-label="手机端主导航">
+        <button
+          className={activeScope === "all" ? "active" : ""}
+          type="button"
+          aria-current={activeScope === "all" ? "page" : undefined}
+          onClick={() => selectScope("all")}
+        >
+          <Grid2X2 size={20} />
+          <span>全部</span>
+        </button>
+        <button
+          className={activeScope === "inbox" ? "active" : ""}
+          type="button"
+          aria-current={activeScope === "inbox" ? "page" : undefined}
+          onClick={() => selectScope("inbox")}
+        >
+          <Inbox size={20} />
+          <span>收件箱</span>
+        </button>
+        <button
+          className="mobile-add-button"
+          type="button"
+          aria-label="添加素材"
+          onClick={() => {
+            setSidebarOpen(false);
+            setInspectorOpen(false);
+            setCaptureOpen(true);
+            window.setTimeout(() => captureUrlRef.current?.focus(), 120);
+          }}
+        >
+          <span className="mobile-add-icon" aria-hidden="true">
+            <Plus size={22} />
+          </span>
+          <span>添加</span>
+        </button>
+        <button
+          className={activeScope === "favorites" ? "active" : ""}
+          type="button"
+          aria-current={activeScope === "favorites" ? "page" : undefined}
+          onClick={() => selectScope("favorites")}
+        >
+          <Star size={20} />
+          <span>收藏</span>
+        </button>
+        <button
+          className={
+            categories.some((category) => category.name === activeScope)
+              ? "active"
+              : ""
+          }
+          type="button"
+          aria-label="打开分类"
+          onClick={() => {
+            setCaptureOpen(false);
+            setInspectorOpen(false);
+            setSidebarOpen(true);
+          }}
+        >
+          <Menu size={20} />
+          <span>分类</span>
+        </button>
+      </nav>
 
       {toast && (
         <div className="toast" role="status">

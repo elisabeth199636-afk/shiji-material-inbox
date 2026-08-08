@@ -31,6 +31,8 @@ test("builds the material inbox product surface", async () => {
   assert.match(page, /MaterialInbox/);
   assert.match(layout, /拾集 · 灵感素材库/);
   assert.match(layout, /og\.png/);
+  assert.match(layout, /viewportFit: "cover"/);
+  assert.match(layout, /width: "device-width"/);
   assert.match(client, /添加素材/);
   assert.match(client, /素材详情/);
   assert.match(client, /\/api\/items/);
@@ -52,6 +54,11 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /aria-autocomplete="list"/);
   assert.match(client, /capture-tag-suggestions/);
   assert.match(client, /detail-tag-suggestions/);
+  assert.match(client, /mobile-bottom-nav/);
+  assert.match(client, /mobile-add-button/);
+  assert.match(client, /capture-mobile-scrim/);
+  assert.match(client, /手机端主导航/);
+  assert.match(client, /compactViewport/);
   assert.match(client, /back-to-top/);
   assert.match(client, /回到素材列表顶部/);
   assert.match(client, /scrollTop > 240/);
@@ -62,6 +69,14 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /选择分类颜色/);
   assert.match(client, /重命名分类/);
   assert.match(globals, /\.mobile-menu\.icon-button\s*\{\s*display: none/);
+  assert.match(globals, /\.mobile-bottom-nav/);
+  assert.match(globals, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(globals, /env\(safe-area-inset-bottom\)/);
+  assert.match(globals, /height: 100dvh/);
+  assert.match(globals, /font-size: 16px/);
+  assert.match(globals, /\.asset-grid\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(globals, /\.capture-mobile-scrim/);
+  assert.match(globals, /\.capture-tray::before/);
   assert.match(globals, /\.tag-suggestions/);
   assert.match(globals, /\.capture-form \.field-tags/);
   assert.doesNotMatch(globals, /\.capture-form \.field:last-of-type/);
