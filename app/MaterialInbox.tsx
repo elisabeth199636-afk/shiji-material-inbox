@@ -35,6 +35,14 @@ import {
   useState,
 } from "react";
 import { extractHttpUrl } from "../lib/link-input";
+import {
+  getCommittedTags,
+  getCurrentTagDraft,
+  getTagSuggestions,
+  normalizeTag,
+  parseTagInput,
+  replaceCurrentTag,
+} from "../lib/tag-input";
 
 type MaterialItem = {
   id: string;
@@ -149,58 +157,6 @@ const CATEGORY_DEFAULT_COVERS: Record<string, string> = {
 
 function getDefaultCover(category: string) {
   return CATEGORY_DEFAULT_COVERS[category] ?? GENERAL_DEFAULT_COVER;
-}
-
-function normalizeTag(value: string) {
-  return value.trim().replace(/^#+/, "").replace(/\s+/g, " ");
-}
-
-function parseTagInput(value: string) {
-  return value
-    .split(/[,，、]/)
-    .map(normalizeTag)
-    .filter(Boolean);
-}
-
-function getCurrentTagDraft(value: string) {
-  const parts = value.split(/[,，、]/);
-  return normalizeTag(parts[parts.length - 1] ?? "");
-}
-
-function getCommittedTags(value: string) {
-  const parts = value.split(/[,，、]/);
-  return parts.slice(0, -1).map(normalizeTag).filter(Boolean);
-}
-
-function getTagSuggestions(
-  knownTags: string[],
-  draft: string,
-  excludedTags: string[],
-) {
-  const query = normalizeTag(draft).toLocaleLowerCase("zh-CN");
-  if (!query) return [];
-  const excluded = new Set(
-    excludedTags.map((tag) => tag.toLocaleLowerCase("zh-CN")),
-  );
-  return knownTags
-    .filter((tag) => {
-      const normalized = tag.toLocaleLowerCase("zh-CN");
-      return normalized.startsWith(query) && !excluded.has(normalized);
-    })
-    .slice(0, 6);
-}
-
-function replaceCurrentTag(value: string, selectedTag: string) {
-  const nextTags = [...getCommittedTags(value), normalizeTag(selectedTag)];
-  const uniqueTags = nextTags.filter(
-    (tag, index) =>
-      nextTags.findIndex(
-        (candidate) =>
-          candidate.toLocaleLowerCase("zh-CN") ===
-          tag.toLocaleLowerCase("zh-CN"),
-      ) === index,
-  );
-  return uniqueTags.join("，");
 }
 
 function formatDate(value: string) {
@@ -475,10 +431,16 @@ export function MaterialInbox() {
   }
 
   function chooseCaptureTag(tag: string) {
-    setCaptureTags((current) => replaceCurrentTag(current, tag));
+    const nextValue = replaceCurrentTag(captureTags, tag);
+    setCaptureTags(nextValue);
     setCaptureTagSuggestionsOpen(false);
     setCaptureTagActiveIndex(0);
-    window.setTimeout(() => captureTagsRef.current?.focus(), 0);
+    window.setTimeout(() => {
+      const input = captureTagsRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(nextValue.length, nextValue.length);
+    }, 0);
   }
 
   function handleCaptureTagKeyDown(
@@ -2033,6 +1995,7 @@ function TagSuggestionMenu({
           role="option"
           aria-selected={activeIndex === index}
           onMouseEnter={() => onActiveIndexChange(index)}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => onSelect(tag)}
         >
           <span aria-hidden="true">#</span>

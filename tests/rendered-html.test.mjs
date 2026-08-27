@@ -11,6 +11,7 @@ test("builds the material inbox product surface", async () => {
     previewRoute,
     previewImageRoute,
     linkPreview,
+    tagInput,
     itemsSource,
     globals,
     hosting,
@@ -22,6 +23,7 @@ test("builds the material inbox product surface", async () => {
     readFile(new URL("../app/api/items/preview/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/preview-image/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/link-preview.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/tag-input.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/items.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
@@ -48,12 +50,15 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /shiji\.search-history/);
   assert.match(client, /knownTags/);
   assert.match(client, /getTagSuggestions/);
-  assert.match(client, /startsWith\(query\)/);
+  assert.match(tagInput, /startsWith\(query\)/);
   assert.match(client, /TagSuggestionMenu/);
   assert.match(client, /历史标签/);
   assert.match(client, /aria-autocomplete="list"/);
   assert.match(client, /capture-tag-suggestions/);
   assert.match(client, /detail-tag-suggestions/);
+  assert.match(client, /setSelectionRange\(nextValue\.length, nextValue\.length\)/);
+  assert.match(client, /onMouseDown=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(tagInput, /`\$\{uniqueTags\.join\("，"\)\}，`/);
   assert.match(client, /mobile-bottom-nav/);
   assert.match(client, /mobile-add-button/);
   assert.match(client, /capture-mobile-scrim/);
