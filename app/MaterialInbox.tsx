@@ -1268,7 +1268,7 @@ export function MaterialInbox() {
                 ? `正在查找“${query}”`
                 : activeScope === "inbox"
                   ? "先收进来，再慢慢整理。"
-                  : "收集来自手机与电脑的每一条灵感。"}
+                  : "收集每一条灵感"}
             </p>
           </div>
           <div className="view-tools">
