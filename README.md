@@ -7,9 +7,9 @@
 | 版本 | 视觉风格 | GitHub 分支 | 使用状态 |
 | --- | --- | --- | --- |
 | A · 经典紫色版 | 深色侧栏，紫色主操作与选中态 | [`variant/a-classic-purple`](https://github.com/elisabeth199636-afk/shiji-material-inbox/tree/variant/a-classic-purple) | 保留，可随时查看、下载或继续开发 |
-| B · 黑白简约版 | 白色工作区，黑色主操作与选中态 | [`variant/b-monochrome`](https://github.com/elisabeth199636-afk/shiji-material-inbox/tree/variant/b-monochrome) | 当前版本，可直接使用 |
+| B · 黑白亮黄版 | 白色工作区，亮黄色主操作与选中态 | [`variant/b-monochrome`](https://github.com/elisabeth199636-afk/shiji-material-inbox/tree/variant/b-monochrome) | 当前版本，可直接使用 |
 
-当前在线运行的是 B · 黑白简约版：
+当前在线运行的是 B · 黑白亮黄版：
 
 [打开拾集](https://shiji-material-inbox.elisabeth199636.chatgpt.site)
 
