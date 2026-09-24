@@ -184,7 +184,14 @@ function getHostname(url: string) {
   }
 }
 
-export function MaterialInbox() {
+export function MaterialInbox({
+  user,
+  signOutPath,
+}: {
+  user: { displayName: string; email: string };
+  signOutPath: string;
+}) {
+  const userInitial = Array.from(user.displayName.trim())[0] || "我";
   const [items, setItems] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeScope, setActiveScope] = useState("all");
@@ -1102,9 +1109,15 @@ export function MaterialInbox() {
               <Plus size={16} />
               <span>添加素材</span>
             </button>
-            <button className="avatar" aria-label="账户与设置">
-              J
-            </button>
+            <a
+              className="avatar"
+              href={signOutPath}
+              target="_top"
+              aria-label={`${user.displayName}，退出登录`}
+              title={`${user.email} · 退出登录`}
+            >
+              {userInitial.toUpperCase()}
+            </a>
           </div>
         </header>
 

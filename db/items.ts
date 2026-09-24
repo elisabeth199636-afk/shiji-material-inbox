@@ -43,6 +43,7 @@ export type MaterialCategory = {
 
 type ItemRow = {
   id: string;
+  user_id: string;
   url: string;
   normalized_url: string;
   title: string;
@@ -61,6 +62,7 @@ type ItemRow = {
 };
 
 type CategoryRow = {
+  user_id: string;
   name: string;
   color: string;
   position: number;
@@ -92,86 +94,7 @@ export const categoryPalette = [
   "pink",
 ] as const;
 
-const seedItems: Array<CreateMaterialInput & { id: string; createdAt: string }> = [
-  {
-    id: "sample-workspace",
-    url: "https://unsplash.com/photos/a-person-is-typing-on-a-computer-keyboard-aNwGNIAi7Kk",
-    title: "让创作桌面保持专注的收纳方式",
-    category: "灵感收集",
-    tags: ["工作流", "桌面", "效率"],
-    notes: "桌面布局清晰，适合作为工作区整理与拍摄构图参考。",
-    thumbnail: "/demo/workspace.jpg",
-    author: "Amr Taha",
-    captureMethod: "浏览器扩展",
-    device: "Mac",
-    createdAt: "2026-07-29T09:42:00.000Z",
-  },
-  {
-    id: "sample-robot",
-    url: "https://unsplash.com/photos/white-robot-wallpaper-JjGXjESMxOY",
-    title: "AI 产品视觉：克制的未来感",
-    category: "AI 学习",
-    tags: ["AI", "视觉风格", "产品"],
-    notes: "避免霓虹赛博朋克，黑白高反差更适合严肃的 AI 产品表达。",
-    thumbnail: "/demo/robot.jpg",
-    author: "Possessed Photography",
-    captureMethod: "网页粘贴",
-    device: "Windows",
-    createdAt: "2026-07-29T08:16:00.000Z",
-  },
-  {
-    id: "sample-travel-rock",
-    url: "https://unsplash.com/photos/a-woman-standing-on-a-rock-in-the-water-02fgSTavbyE",
-    title: "湖边人物与自然景观的取景关系",
-    category: "灵感收集",
-    tags: ["旅行", "摄影", "构图"],
-    notes: "人物放在画面边缘，给湖面与山体留下更多呼吸空间。",
-    thumbnail: "/demo/travel-rock.jpg",
-    author: "Josh Hild",
-    captureMethod: "手机分享",
-    device: "iPhone",
-    createdAt: "2026-07-28T15:20:00.000Z",
-  },
-  {
-    id: "sample-mountain",
-    url: "https://unsplash.com/photos/person-enjoys-a-stunning-view-of-lake-and-mountains-r1LiDUXcp5Q",
-    title: "把旅行目的地做成内容专题",
-    category: "灵感收集",
-    tags: ["新西兰", "旅行计划", "专题"],
-    notes: "可以继续补充交通、住宿和徒步路线，组合成一个专题。",
-    thumbnail: "/demo/mountain-view.jpg",
-    author: "Tobias Rademacher",
-    captureMethod: "操作按钮",
-    device: "iPhone",
-    createdAt: "2026-07-28T11:08:00.000Z",
-  },
-  {
-    id: "sample-lake",
-    url: "https://unsplash.com/photos/a-mountain-range-with-a-lake-in-the-foreground-5CbjzGrni4c",
-    title: "冷色风景影像的层次控制",
-    category: "灵感收集",
-    tags: ["调色", "风景", "摄影"],
-    notes: "远山、湖面和前景保持三个清晰层次，适合做封面图。",
-    thumbnail: "/demo/lake.jpg",
-    author: "Alexander Klimm",
-    captureMethod: "浏览器快捷键",
-    device: "Mac",
-    createdAt: "2026-07-27T06:35:00.000Z",
-  },
-  {
-    id: "sample-social",
-    url: "https://www.douyin.com/",
-    title: "短视频开场前 3 秒的结构拆解",
-    category: "收件箱",
-    tags: ["短视频", "开场", "待整理"],
-    notes: "",
-    thumbnail: null,
-    author: "来自抖音",
-    captureMethod: "手机分享",
-    device: "iPhone",
-    createdAt: "2026-07-27T01:12:00.000Z",
-  },
-];
+const LEGACY_USER_ID = "__legacy_owner__";
 
 function getBinding(): D1Database {
   if (!env.DB) {
@@ -180,126 +103,69 @@ function getBinding(): D1Database {
   return env.DB;
 }
 
-export async function ensureDatabase(): Promise<void> {
+export async function claimLegacyData(
+  userId: string,
+  email: string,
+): Promise<void> {
+  const legacyOwnerEmail = (
+    env as unknown as { LEGACY_OWNER_EMAIL?: string }
+  ).LEGACY_OWNER_EMAIL?.trim().toLowerCase();
+  if (!legacyOwnerEmail || email.trim().toLowerCase() !== legacyOwnerEmail) {
+    return;
+  }
+
   const db = getBinding();
   await db.batch([
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS items (
-        id TEXT PRIMARY KEY,
-        url TEXT NOT NULL,
-        normalized_url TEXT NOT NULL UNIQUE,
-        title TEXT NOT NULL,
-        platform TEXT NOT NULL,
-        author TEXT,
-        thumbnail TEXT,
-        category TEXT NOT NULL DEFAULT '收件箱',
-        tags TEXT NOT NULL DEFAULT '[]',
-        notes TEXT NOT NULL DEFAULT '',
-        capture_method TEXT NOT NULL DEFAULT '网页粘贴',
-        device TEXT NOT NULL DEFAULT '网页',
-        favorite INTEGER NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'ready',
-        preview_checked_at TEXT,
-        created_at TEXT NOT NULL
-      )
-    `),
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS categories (
-        name TEXT PRIMARY KEY,
-        color TEXT NOT NULL DEFAULT 'cyan',
-        position INTEGER NOT NULL DEFAULT 0,
-        is_default INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-      )
-    `),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS items_created_at_idx ON items(created_at DESC)",
-    ),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS items_category_idx ON items(category)",
-    ),
+    db
+      .prepare("UPDATE categories SET user_id = ? WHERE user_id = ?")
+      .bind(userId, LEGACY_USER_ID),
+    db
+      .prepare("UPDATE items SET user_id = ? WHERE user_id = ?")
+      .bind(userId, LEGACY_USER_ID),
   ]);
-
-  await ensurePreviewCheckedAtColumn(db);
-
-  const categoryCount = await db
-    .prepare("SELECT COUNT(*) AS count FROM categories")
-    .first<{ count: number }>();
-
-  if ((categoryCount?.count ?? 0) === 0) {
-    await db.batch(
-      defaultCategories.map((category) =>
-        db
-          .prepare(`
-            INSERT INTO categories (
-              name, color, position, is_default, created_at
-            ) VALUES (?, ?, ?, 1, ?)
-          `)
-          .bind(
-            category.name,
-            category.color,
-            category.position,
-            "2026-07-29T00:00:00.000Z",
-          ),
-      ),
-    );
-  }
-
-  const count = await db
-    .prepare("SELECT COUNT(*) AS count FROM items")
-    .first<{ count: number }>();
-
-  if ((count?.count ?? 0) === 0) {
-    await db.batch(
-      seedItems.map((item) => {
-        const normalizedUrl = normalizeUrl(item.url);
-        return db
-          .prepare(`
-            INSERT OR IGNORE INTO items (
-              id, url, normalized_url, title, platform, author, thumbnail,
-              category, tags, notes, capture_method, device, favorite,
-              status, preview_checked_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'ready', ?, ?)
-          `)
-          .bind(
-            item.id,
-            item.url,
-            normalizedUrl,
-            item.title,
-            detectPlatform(item.url),
-            item.author ?? null,
-            item.thumbnail ?? null,
-            item.category ?? "收件箱",
-            JSON.stringify(item.tags ?? []),
-            item.notes ?? "",
-            item.captureMethod ?? "网页粘贴",
-            item.device ?? "网页",
-            item.thumbnail ? item.createdAt : null,
-            item.createdAt,
-          );
-      }),
-    );
-  }
 }
 
-export async function listCategories(): Promise<MaterialCategory[]> {
-  await ensureDatabase();
+async function ensureUserCategories(userId: string): Promise<void> {
+  const db = getBinding();
+  await db.batch(
+    defaultCategories.map((category) =>
+      db
+        .prepare(`
+          INSERT OR IGNORE INTO categories (
+            user_id, name, color, position, is_default, created_at
+          ) VALUES (?, ?, ?, ?, 1, ?)
+        `)
+        .bind(
+          userId,
+          category.name,
+          category.color,
+          category.position,
+          "2026-07-29T00:00:00.000Z",
+        ),
+    ),
+  );
+}
+
+export async function listCategories(userId: string): Promise<MaterialCategory[]> {
+  await ensureUserCategories(userId);
   const result = await getBinding()
     .prepare(
-      "SELECT * FROM categories ORDER BY position ASC, created_at ASC, name ASC",
+      "SELECT * FROM categories WHERE user_id = ? ORDER BY position ASC, created_at ASC, name ASC",
     )
+    .bind(userId)
     .all<CategoryRow>();
   return result.results.map(mapCategoryRow);
 }
 
 export async function createCategory(
+  userId: string,
   name: string,
 ): Promise<{ category: MaterialCategory; duplicate: boolean }> {
-  await ensureDatabase();
+  await ensureUserCategories(userId);
   const db = getBinding();
   const existing = await db
-    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-    .bind(name)
+    .prepare("SELECT * FROM categories WHERE user_id = ? AND name = ? LIMIT 1")
+    .bind(userId, name)
     .first<CategoryRow>();
 
   if (existing) {
@@ -311,14 +177,18 @@ export async function createCategory(
       SELECT
         COALESCE(MAX(position), -1) + 1 AS next_position
       FROM categories
+      WHERE user_id = ?
     `)
+    .bind(userId)
     .first<{ next_position: number }>();
   const colorUsage = await db
     .prepare(`
       SELECT color, COUNT(*) AS usage
       FROM categories
+      WHERE user_id = ?
       GROUP BY color
     `)
+    .bind(userId)
     .all<{ color: string; usage: number }>();
   const usageByColor = new Map(
     colorUsage.results.map((entry) => [entry.color, entry.usage]),
@@ -335,15 +205,15 @@ export async function createCategory(
   const inserted = await db
     .prepare(`
       INSERT OR IGNORE INTO categories (
-        name, color, position, is_default, created_at
-      ) VALUES (?, ?, ?, 0, ?)
+        user_id, name, color, position, is_default, created_at
+      ) VALUES (?, ?, ?, ?, 0, ?)
     `)
-    .bind(name, color, position, createdAt)
+    .bind(userId, name, color, position, createdAt)
     .run();
 
   const category = await db
-    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-    .bind(name)
+    .prepare("SELECT * FROM categories WHERE user_id = ? AND name = ? LIMIT 1")
+    .bind(userId, name)
     .first<CategoryRow>();
 
   if (!category) {
@@ -357,15 +227,16 @@ export async function createCategory(
 }
 
 export async function renameCategory(
+  userId: string,
   name: string,
   newName: string,
   newColor: (typeof categoryPalette)[number],
 ): Promise<{ category: MaterialCategory | null; duplicate: boolean }> {
-  await ensureDatabase();
+  await ensureUserCategories(userId);
   const db = getBinding();
   const current = await db
-    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-    .bind(name)
+    .prepare("SELECT * FROM categories WHERE user_id = ? AND name = ? LIMIT 1")
+    .bind(userId, name)
     .first<CategoryRow>();
 
   if (!current) {
@@ -377,8 +248,8 @@ export async function renameCategory(
 
   if (name !== newName) {
     const duplicate = await db
-      .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-      .bind(newName)
+      .prepare("SELECT * FROM categories WHERE user_id = ? AND name = ? LIMIT 1")
+      .bind(userId, newName)
       .first<CategoryRow>();
     if (duplicate) {
       return { category: mapCategoryRow(duplicate), duplicate: true };
@@ -387,16 +258,16 @@ export async function renameCategory(
 
   await db.batch([
     db
-      .prepare("UPDATE categories SET name = ?, color = ? WHERE name = ?")
-      .bind(newName, newColor, name),
+      .prepare("UPDATE categories SET name = ?, color = ? WHERE user_id = ? AND name = ?")
+      .bind(newName, newColor, userId, name),
     db
-      .prepare("UPDATE items SET category = ? WHERE category = ?")
-      .bind(newName, name),
+      .prepare("UPDATE items SET category = ? WHERE user_id = ? AND category = ?")
+      .bind(newName, userId, name),
   ]);
 
   const renamed = await db
-    .prepare("SELECT * FROM categories WHERE name = ? LIMIT 1")
-    .bind(newName)
+    .prepare("SELECT * FROM categories WHERE user_id = ? AND name = ? LIMIT 1")
+    .bind(userId, newName)
     .first<CategoryRow>();
   if (!renamed) {
     throw new Error("分类更新失败，请稍后重试");
@@ -405,18 +276,18 @@ export async function renameCategory(
   return { category: mapCategoryRow(renamed), duplicate: false };
 }
 
-export async function listItems(): Promise<MaterialItem[]> {
-  await ensureDatabase();
+export async function listItems(userId: string): Promise<MaterialItem[]> {
   const result = await getBinding()
-    .prepare("SELECT * FROM items ORDER BY created_at DESC")
+    .prepare("SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC")
+    .bind(userId)
     .all<ItemRow>();
   return result.results.map(mapRow);
 }
 
 export async function createItem(
+  userId: string,
   input: CreateMaterialInput,
 ): Promise<{ item: MaterialItem; duplicate: boolean }> {
-  await ensureDatabase();
   const db = getBinding();
   const sourceUrl = extractHttpUrl(input.url);
   if (!sourceUrl) {
@@ -424,8 +295,8 @@ export async function createItem(
   }
   const normalizedUrl = normalizeUrl(sourceUrl);
   const existing = await db
-    .prepare("SELECT * FROM items WHERE normalized_url = ? LIMIT 1")
-    .bind(normalizedUrl)
+    .prepare("SELECT * FROM items WHERE user_id = ? AND normalized_url = ? LIMIT 1")
+    .bind(userId, normalizedUrl)
     .first<ItemRow>();
 
   if (existing) {
@@ -458,13 +329,14 @@ export async function createItem(
   await db
     .prepare(`
       INSERT INTO items (
-        id, url, normalized_url, title, platform, author, thumbnail,
+        id, user_id, url, normalized_url, title, platform, author, thumbnail,
         category, tags, notes, capture_method, device, favorite,
         status, preview_checked_at, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       item.id,
+      userId,
       item.url,
       item.normalizedUrl,
       item.title,
@@ -487,13 +359,13 @@ export async function createItem(
 }
 
 export async function refreshItemPreview(
+  userId: string,
   id: string,
 ): Promise<MaterialItem | null> {
-  await ensureDatabase();
   const db = getBinding();
   const existing = await db
-    .prepare("SELECT * FROM items WHERE id = ? LIMIT 1")
-    .bind(id)
+    .prepare("SELECT * FROM items WHERE user_id = ? AND id = ? LIMIT 1")
+    .bind(userId, id)
     .first<ItemRow>();
 
   if (!existing) return null;
@@ -505,7 +377,7 @@ export async function refreshItemPreview(
   const title =
     shouldReplaceTitle && metadata.title ? metadata.title : current.title;
   const fetchedThumbnail = metadata.image
-    ? await persistPreviewImage(id, metadata.image)
+    ? await persistPreviewImage(userId, id, metadata.image)
     : null;
   const thumbnail = fetchedThumbnail || metadata.image || current.thumbnail;
   const author = current.author || metadata.author;
@@ -514,9 +386,9 @@ export async function refreshItemPreview(
     .prepare(`
       UPDATE items
       SET title = ?, author = ?, thumbnail = ?, preview_checked_at = ?
-      WHERE id = ?
+      WHERE user_id = ? AND id = ?
     `)
-    .bind(title, author, thumbnail, previewCheckedAt, id)
+    .bind(title, author, thumbnail, previewCheckedAt, userId, id)
     .run();
 
   return {
@@ -529,16 +401,16 @@ export async function refreshItemPreview(
 }
 
 export async function updateItem(
+  userId: string,
   id: string,
   patch: Partial<
     Pick<MaterialItem, "title" | "category" | "tags" | "notes" | "favorite">
   >,
 ): Promise<MaterialItem | null> {
-  await ensureDatabase();
   const db = getBinding();
   const existing = await db
-    .prepare("SELECT * FROM items WHERE id = ? LIMIT 1")
-    .bind(id)
+    .prepare("SELECT * FROM items WHERE user_id = ? AND id = ? LIMIT 1")
+    .bind(userId, id)
     .first<ItemRow>();
 
   if (!existing) return null;
@@ -556,7 +428,7 @@ export async function updateItem(
     .prepare(`
       UPDATE items
       SET title = ?, category = ?, tags = ?, notes = ?, favorite = ?
-      WHERE id = ?
+      WHERE user_id = ? AND id = ?
     `)
     .bind(
       next.title,
@@ -564,6 +436,7 @@ export async function updateItem(
       JSON.stringify(next.tags),
       next.notes,
       next.favorite ? 1 : 0,
+      userId,
       id,
     )
     .run();
@@ -571,19 +444,29 @@ export async function updateItem(
   return next;
 }
 
-export async function deleteItem(id: string): Promise<boolean> {
-  await ensureDatabase();
+export async function deleteItem(userId: string, id: string): Promise<boolean> {
   const result = await getBinding()
-    .prepare("DELETE FROM items WHERE id = ?")
-    .bind(id)
+    .prepare("DELETE FROM items WHERE user_id = ? AND id = ?")
+    .bind(userId, id)
     .run();
   const deleted = (result.meta.changes ?? 0) > 0;
   if (deleted) {
     await getPreviewBucket()
-      ?.delete(`previews/${id}`)
+      ?.delete([previewObjectKey(userId, id), legacyPreviewObjectKey(id)])
       .catch(() => undefined);
   }
   return deleted;
+}
+
+export async function getItem(
+  userId: string,
+  id: string,
+): Promise<MaterialItem | null> {
+  const row = await getBinding()
+    .prepare("SELECT * FROM items WHERE user_id = ? AND id = ? LIMIT 1")
+    .bind(userId, id)
+    .first<ItemRow>();
+  return row ? mapRow(row) : null;
 }
 
 function mapRow(row: ItemRow): MaterialItem {
@@ -665,24 +548,6 @@ function cleanTags(tags: string[]): string[] {
   ).slice(0, 12);
 }
 
-async function ensurePreviewCheckedAtColumn(db: D1Database): Promise<void> {
-  const columns = await db
-    .prepare("PRAGMA table_info(items)")
-    .all<{ name: string }>();
-  if (columns.results.some((column) => column.name === "preview_checked_at")) {
-    return;
-  }
-
-  try {
-    await db
-      .prepare("ALTER TABLE items ADD COLUMN preview_checked_at TEXT")
-      .run();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.toLowerCase().includes("duplicate column")) throw error;
-  }
-}
-
 function getPreviewBucket(): R2Bucket | null {
   return (
     (env as unknown as { PREVIEWS?: R2Bucket }).PREVIEWS ??
@@ -691,6 +556,7 @@ function getPreviewBucket(): R2Bucket | null {
 }
 
 async function persistPreviewImage(
+  userId: string,
   itemId: string,
   imageUrl: string,
 ): Promise<string | null> {
@@ -699,11 +565,19 @@ async function persistPreviewImage(
 
   const image = await fetchPreviewImage(imageUrl);
   if (!image) return null;
-  await bucket.put(`previews/${itemId}`, image.bytes, {
+  await bucket.put(previewObjectKey(userId, itemId), image.bytes, {
     httpMetadata: {
       contentType: image.contentType,
-      cacheControl: "public, max-age=31536000, immutable",
+      cacheControl: "private, max-age=31536000, immutable",
     },
   });
   return `/api/preview-image?id=${encodeURIComponent(itemId)}&v=${Date.now()}`;
+}
+
+export function previewObjectKey(userId: string, itemId: string): string {
+  return `previews/users/${encodeURIComponent(userId)}/${itemId}`;
+}
+
+export function legacyPreviewObjectKey(itemId: string): string {
+  return `previews/${itemId}`;
 }

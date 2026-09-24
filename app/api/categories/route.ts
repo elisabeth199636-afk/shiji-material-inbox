@@ -4,6 +4,7 @@ import {
   listCategories,
   renameCategory,
 } from "../../../db/items";
+import { getApiUser, unauthorizedJson } from "../api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,9 @@ const reservedNames = new Set([
 
 export async function GET() {
   try {
-    return Response.json({ categories: await listCategories() });
+    const user = await getApiUser();
+    if (!user) return unauthorizedJson();
+    return Response.json({ categories: await listCategories(user.id) });
   } catch (error) {
     return errorResponse(error);
   }
@@ -24,11 +27,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getApiUser();
+    if (!user) return unauthorizedJson();
     const input = await request.json();
     const validation = validateCategoryName(input?.name);
     if ("response" in validation) return validation.response;
 
-    const result = await createCategory(validation.name);
+    const result = await createCategory(user.id, validation.name);
     if (result.duplicate) {
       return Response.json(
         { error: "这个分类已经存在", category: result.category },
@@ -43,6 +48,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getApiUser();
+    if (!user) return unauthorizedJson();
     const input = await request.json();
     if (typeof input?.name !== "string" || !input.name.trim()) {
       return Response.json({ error: "找不到要修改的分类" }, { status: 400 });
@@ -61,6 +68,7 @@ export async function PATCH(request: Request) {
     }
 
     const result = await renameCategory(
+      user.id,
       currentName,
       validation.name,
       input.color as (typeof categoryPalette)[number],

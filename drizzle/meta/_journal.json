@@ -29,6 +29,13 @@
       "when": 1785419451301,
       "tag": "0003_link_previews",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790253457562,
+      "tag": "0004_giant_arclight",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,11 @@ test("builds the material inbox product surface", async () => {
     itemsSource,
     globals,
     hosting,
+    chatgptAuth,
+    apiAuth,
+    itemsRoute,
+    schema,
+    userIsolationMigration,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -27,10 +32,21 @@ test("builds the material inbox product surface", async () => {
     readFile(new URL("../db/items.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/chatgpt-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/api-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/items/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../drizzle/0004_giant_arclight.sql", import.meta.url),
+      "utf8",
+    ),
     access(new URL("../dist/server/index.js", import.meta.url)),
   ]);
 
   assert.match(page, /MaterialInbox/);
+  assert.match(page, /使用 ChatGPT 登录/);
+  assert.match(page, /getChatGPTUser/);
+  assert.match(page, /chatGPTSignOutPath/);
   assert.match(layout, /拾集 · 灵感素材库/);
   assert.match(layout, /og\.png/);
   assert.match(layout, /viewportFit: "cover"/);
@@ -118,6 +134,10 @@ test("builds the material inbox product surface", async () => {
   }
   assert.match(previewRoute, /refreshItemPreview/);
   assert.match(previewImageRoute, /PREVIEWS/);
+  assert.match(previewImageRoute, /getApiUser/);
+  assert.match(previewImageRoute, /getItem\(user\.id, id\)/);
+  assert.match(previewImageRoute, /previewObjectKey\(user\.id, id\)/);
+  assert.match(previewImageRoute, /Cache-Control", "private/);
   assert.match(previewImageRoute, /X-Content-Type-Options/);
   assert.match(linkPreview, /og:image/);
   assert.match(linkPreview, /twitter:image/);
@@ -134,6 +154,22 @@ test("builds the material inbox product surface", async () => {
   assert.doesNotMatch(client, /通识学习/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(hosting, /"r2": "PREVIEWS"/);
+  assert.match(chatgptAuth, /oai-authenticated-user-id/);
+  assert.match(apiAuth, /claimLegacyData\(user\.id, user\.email\)/);
+  assert.match(itemsRoute, /listItems\(user\.id\)/);
+  assert.match(itemsRoute, /createItem\(user\.id/);
+  assert.match(itemsRoute, /updateItem\(user\.id/);
+  assert.match(itemsRoute, /deleteItem\(user\.id/);
+  assert.match(schema, /items_user_normalized_url_unique/);
+  assert.match(schema, /table\.userId,\s*table\.normalizedUrl/);
+  assert.match(userIsolationMigration, /ADD `user_id`/);
+  assert.match(
+    userIsolationMigration,
+    /items_user_normalized_url_unique.*`user_id`,`normalized_url`/s,
+  );
+  assert.match(itemsSource, /WHERE user_id = \? AND normalized_url = \?/);
+  assert.match(itemsSource, /WHERE user_id = \? AND id = \?/);
+  assert.match(itemsSource, /previews\/users\//);
   assert.doesNotMatch(
     `${page}\n${layout}\n${client}`,
     /codex-preview|SkeletonPreview|Your site is taking shape/i,

@@ -40,6 +40,115 @@ body {
   margin: 0;
 }
 
+.sign-in-shell {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 18%, var(--primary-soft), transparent 34%),
+    var(--bg);
+}
+
+.sign-in-card {
+  width: min(100%, 420px);
+  padding: 40px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px color-mix(in oklch, var(--ink) 10%, transparent);
+  text-align: center;
+}
+
+.sign-in-brand {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 22px;
+  border-radius: 14px;
+  background: var(--primary);
+}
+
+.sign-in-brand span {
+  position: absolute;
+  width: 20px;
+  height: 27px;
+  border-radius: 5px;
+  background: var(--primary-contrast);
+}
+
+.sign-in-brand span:first-child {
+  top: 9px;
+  left: 9px;
+}
+
+.sign-in-brand span:last-child {
+  right: 8px;
+  bottom: 8px;
+  background: oklch(0.42 0 0);
+}
+
+.sign-in-eyebrow {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.sign-in-card h1 {
+  margin: 0;
+  font-size: clamp(28px, 7vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.sign-in-copy {
+  margin: 18px 0 28px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.sign-in-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 0 22px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 16px;
+  font-weight: 750;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.sign-in-button:hover {
+  background: var(--primary-hover);
+}
+
+.sign-in-button:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 520px) {
+  .sign-in-shell {
+    align-items: end;
+    padding: 16px;
+  }
+
+  .sign-in-card {
+    padding: 34px 24px;
+    border-radius: 22px;
+  }
+
+  .sign-in-button {
+    width: 100%;
+  }
+}
+
 body {
   overflow: hidden;
   background: var(--bg);
