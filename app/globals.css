@@ -1292,6 +1292,7 @@ img {
 
 .asset-meta span:first-child {
   overflow: hidden;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
