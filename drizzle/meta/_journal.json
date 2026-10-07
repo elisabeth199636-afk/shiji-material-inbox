@@ -36,6 +36,13 @@
       "when": 1790253457562,
       "tag": "0004_giant_arclight",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791353075494,
+      "tag": "0005_lyrical_mantis",
+      "breakpoints": true
     }
   ]
 }

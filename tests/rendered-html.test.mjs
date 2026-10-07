@@ -20,6 +20,8 @@ test("builds the material inbox product surface", async () => {
     itemsRoute,
     schema,
     userIsolationMigration,
+    previewRateLimit,
+    previewRateLimitMigration,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -38,6 +40,11 @@ test("builds the material inbox product surface", async () => {
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(
       new URL("../drizzle/0004_giant_arclight.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../db/preview-rate-limit.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../drizzle/0005_lyrical_mantis.sql", import.meta.url),
       "utf8",
     ),
     access(new URL("../dist/server/index.js", import.meta.url)),
@@ -141,6 +148,19 @@ test("builds the material inbox product surface", async () => {
     assert.match(globals, new RegExp(`category-dot\\.${color}`));
   }
   assert.match(previewRoute, /refreshItemPreview/);
+  assert.match(previewRoute, /consumePreviewRateLimit\(user\.id\)/);
+  assert.match(previewRoute, /status: 429/);
+  assert.match(previewRoute, /"Retry-After"/);
+  assert.match(previewRoute, /"X-RateLimit-Limit"/);
+  assert.match(previewRateLimit, /PREVIEW_RATE_LIMIT_MAX = 30/);
+  assert.match(previewRateLimit, /PREVIEW_RATE_LIMIT_WINDOW_MS = 10 \* 60 \* 1000/);
+  assert.match(previewRateLimit, /ON CONFLICT\(user_id, window_started_at\)/);
+  assert.match(previewRateLimit, /counter\.request_count <= PREVIEW_RATE_LIMIT_MAX/);
+  assert.match(previewRateLimitMigration, /CREATE TABLE `preview_rate_limits`/);
+  assert.match(
+    previewRateLimitMigration,
+    /PRIMARY KEY\(`user_id`, `window_started_at`\)/,
+  );
   assert.match(previewImageRoute, /PREVIEWS/);
   assert.match(previewImageRoute, /getApiUser/);
   assert.match(previewImageRoute, /getItem\(user\.id, id\)/);

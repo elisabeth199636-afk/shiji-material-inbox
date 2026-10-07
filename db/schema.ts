@@ -58,5 +58,19 @@ export const items = sqliteTable(
   ],
 );
 
+export const previewRateLimits = sqliteTable(
+  "preview_rate_limits",
+  {
+    userId: text("user_id").notNull(),
+    windowStartedAt: integer("window_started_at").notNull(),
+    requestCount: integer("request_count").notNull().default(1),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.windowStartedAt] }),
+  ],
+);
+
 export type CategoryRecord = typeof categories.$inferSelect;
 export type ItemRecord = typeof items.$inferSelect;
+export type PreviewRateLimitRecord = typeof previewRateLimits.$inferSelect;
