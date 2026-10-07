@@ -37,7 +37,7 @@ export default async function Home() {
 
   return (
     <MaterialInbox
-      user={{ displayName: user.displayName, email: user.email }}
+      user={{ id: user.id, displayName: user.displayName, email: user.email }}
       signOutPath={chatGPTSignOutPath("/")}
     />
   );

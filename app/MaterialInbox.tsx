@@ -29,6 +29,7 @@ import {
 import {
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -128,6 +129,7 @@ const primaryScopes = [
 ];
 
 const SEARCH_HISTORY_KEY = "shiji.search-history";
+const RECENT_CUTOFF_TIME = Date.now() - 7 * 24 * 60 * 60 * 1000;
 const CATEGORY_COLOR_OPTIONS = [
   { value: "coral", label: "珊瑚红" },
   { value: "blue", label: "海蓝" },
@@ -159,6 +161,34 @@ function getDefaultCover(category: string) {
   return CATEGORY_DEFAULT_COVERS[category] ?? GENERAL_DEFAULT_COVER;
 }
 
+function getSearchHistoryKey(userId: string) {
+  return `${SEARCH_HISTORY_KEY}:${encodeURIComponent(userId)}`;
+}
+
+function readSearchHistory(storageKey: string): string[] {
+  try {
+    const scopedHistory = window.localStorage.getItem(storageKey);
+    const legacyHistory =
+      scopedHistory === null
+        ? window.localStorage.getItem(SEARCH_HISTORY_KEY)
+        : null;
+    const storedHistory = JSON.parse(scopedHistory ?? legacyHistory ?? "[]");
+    const history = Array.isArray(storedHistory)
+      ? storedHistory
+          .filter((entry): entry is string => typeof entry === "string")
+          .slice(0, 8)
+      : [];
+
+    if (scopedHistory === null && legacyHistory !== null) {
+      window.localStorage.setItem(storageKey, JSON.stringify(history));
+      window.localStorage.removeItem(SEARCH_HISTORY_KEY);
+    }
+    return history;
+  } catch {
+    return [];
+  }
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
   const today = new Date();
@@ -188,10 +218,11 @@ export function MaterialInbox({
   user,
   signOutPath,
 }: {
-  user: { displayName: string; email: string };
+  user: { id: string; displayName: string; email: string };
   signOutPath: string;
 }) {
   const userInitial = Array.from(user.displayName.trim())[0] || "我";
+  const searchHistoryKey = getSearchHistoryKey(user.id);
   const [items, setItems] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeScope, setActiveScope] = useState("all");
@@ -233,21 +264,85 @@ export function MaterialInbox({
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const refreshingPreviewIdsRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadItems();
+  const refreshPreview = useCallback(async (id: string, silent = false) => {
+    if (refreshingPreviewIdsRef.current.has(id)) return;
+    refreshingPreviewIdsRef.current.add(id);
+    setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
+
     try {
-      const storedHistory = JSON.parse(
-        window.localStorage.getItem(SEARCH_HISTORY_KEY) ?? "[]",
+      const response = await fetch("/api/items/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setItems((current) =>
+        current.map((item) => (item.id === id ? data.item : item)),
       );
-      if (Array.isArray(storedHistory)) {
-        setSearchHistory(
-          storedHistory.filter((entry) => typeof entry === "string").slice(0, 8),
+      if (!silent) {
+        setToast(
+          data.found
+            ? "预览图已更新"
+            : "该网页没有公开预览图，已保留原链接",
         );
       }
-    } catch {
-      setSearchHistory([]);
+    } catch (error) {
+      if (!silent) {
+        setToast(error instanceof Error ? error.message : "预览读取失败");
+      }
+    } finally {
+      refreshingPreviewIdsRef.current.delete(id);
+      setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
     }
   }, []);
+
+  const loadItems = useCallback(async () => {
+    try {
+      const [itemsResponse, categoriesResponse] = await Promise.all([
+        fetch("/api/items", { cache: "no-store" }),
+        fetch("/api/categories", { cache: "no-store" }),
+      ]);
+      const [itemsData, categoriesData] = await Promise.all([
+        itemsResponse.json(),
+        categoriesResponse.json(),
+      ]);
+      if (!itemsResponse.ok) throw new Error(itemsData.error);
+      if (!categoriesResponse.ok) throw new Error(categoriesData.error);
+      setItems(itemsData.items);
+      setCategories(categoriesData.categories);
+      const compactViewport = window.matchMedia("(max-width: 980px)").matches;
+      setSelectedId((current) =>
+        current ?? (compactViewport ? null : itemsData.items[0]?.id ?? null),
+      );
+      if (compactViewport) setInspectorOpen(false);
+      const previewsToRead = (itemsData.items as MaterialItem[])
+        .filter((item) => !item.thumbnail && !item.previewCheckedAt)
+        .slice(0, 4);
+      window.setTimeout(() => {
+        previewsToRead.forEach((item) => {
+          void refreshPreview(item.id, true);
+        });
+      }, 120);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "素材加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshPreview, setInspectorOpen]);
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      void loadItems();
+    }, 0);
+    const historyTimer = window.setTimeout(() => {
+      setSearchHistory(readSearchHistory(searchHistoryKey));
+    }, 0);
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.clearTimeout(historyTimer);
+    };
+  }, [loadItems, searchHistoryKey]);
 
   useEffect(() => {
     const handleKeyboard = (event: globalThis.KeyboardEvent) => {
@@ -358,9 +453,7 @@ export function MaterialInbox({
       inbox: items.filter((item) => item.category === "收件箱").length,
       favorites: items.filter((item) => item.favorite).length,
       recent: items.filter(
-        (item) =>
-          Date.now() - new Date(item.createdAt).getTime() <
-          7 * 24 * 60 * 60 * 1000,
+        (item) => new Date(item.createdAt).getTime() >= RECENT_CUTOFF_TIME,
       ).length,
     };
   }, [items]);
@@ -373,8 +466,7 @@ export function MaterialInbox({
         (activeScope === "inbox" && item.category === "收件箱") ||
         (activeScope === "favorites" && item.favorite) ||
         (activeScope === "recent" &&
-          Date.now() - new Date(item.createdAt).getTime() <
-            7 * 24 * 60 * 60 * 1000) ||
+          new Date(item.createdAt).getTime() >= RECENT_CUTOFF_TIME) ||
         item.category === activeScope;
 
       if (!matchesScope) return false;
@@ -408,7 +500,7 @@ export function MaterialInbox({
     setSearchHistory(nextHistory);
     try {
       window.localStorage.setItem(
-        SEARCH_HISTORY_KEY,
+        searchHistoryKey,
         JSON.stringify(nextHistory),
       );
     } catch {
@@ -431,7 +523,7 @@ export function MaterialInbox({
   function clearSearchHistory() {
     setSearchHistory([]);
     try {
-      window.localStorage.removeItem(SEARCH_HISTORY_KEY);
+      window.localStorage.removeItem(searchHistoryKey);
     } catch {
       // Ignore unavailable device storage.
     }
@@ -487,40 +579,6 @@ export function MaterialInbox({
     if (event.key === "Escape") {
       if (captureTagSuggestionsOpen) event.stopPropagation();
       setCaptureTagSuggestionsOpen(false);
-    }
-  }
-
-  async function loadItems() {
-    try {
-      const [itemsResponse, categoriesResponse] = await Promise.all([
-        fetch("/api/items", { cache: "no-store" }),
-        fetch("/api/categories", { cache: "no-store" }),
-      ]);
-      const [itemsData, categoriesData] = await Promise.all([
-        itemsResponse.json(),
-        categoriesResponse.json(),
-      ]);
-      if (!itemsResponse.ok) throw new Error(itemsData.error);
-      if (!categoriesResponse.ok) throw new Error(categoriesData.error);
-      setItems(itemsData.items);
-      setCategories(categoriesData.categories);
-      const compactViewport = window.matchMedia("(max-width: 980px)").matches;
-      setSelectedId((current) =>
-        current ?? (compactViewport ? null : itemsData.items[0]?.id ?? null),
-      );
-      if (compactViewport) setInspectorOpen(false);
-      const previewsToRead = (itemsData.items as MaterialItem[])
-        .filter((item) => !item.thumbnail && !item.previewCheckedAt)
-        .slice(0, 4);
-      window.setTimeout(() => {
-        previewsToRead.forEach((item) => {
-          void refreshPreview(item.id, true);
-        });
-      }, 120);
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "素材加载失败");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -595,39 +653,6 @@ export function MaterialInbox({
       setToast(error instanceof Error ? error.message : "保存失败");
     } finally {
       setAdding(false);
-    }
-  }
-
-  async function refreshPreview(id: string, silent = false) {
-    if (refreshingPreviewIdsRef.current.has(id)) return;
-    refreshingPreviewIdsRef.current.add(id);
-    setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
-
-    try {
-      const response = await fetch("/api/items/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setItems((current) =>
-        current.map((item) => (item.id === id ? data.item : item)),
-      );
-      if (!silent) {
-        setToast(
-          data.found
-            ? "预览图已更新"
-            : "该网页没有公开预览图，已保留原链接",
-        );
-      }
-    } catch (error) {
-      if (!silent) {
-        setToast(error instanceof Error ? error.message : "预览读取失败");
-      }
-    } finally {
-      refreshingPreviewIdsRef.current.delete(id);
-      setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
     }
   }
 
@@ -1048,7 +1073,9 @@ export function MaterialInbox({
                   }
                 }}
                 placeholder="搜索标题、标签、备注..."
+                role="combobox"
                 aria-label="搜索素材"
+                aria-autocomplete="list"
                 aria-expanded={searchHistoryOpen}
                 aria-controls="search-history"
               />
@@ -1622,20 +1649,22 @@ function PreviewVisual({
   refreshing?: boolean;
   onRefresh?: () => void;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [item.previewCheckedAt, item.thumbnail]);
+  const [failedThumbnail, setFailedThumbnail] = useState<string | null>(null);
+  const imageFailed = Boolean(
+    item.thumbnail && failedThumbnail === item.thumbnail,
+  );
 
   if (item.thumbnail && !imageFailed) {
     return (
+      // Preview URLs are dynamic user content; the Vinext worker intentionally
+      // serves them directly instead of through Next image optimization.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={item.thumbnail}
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         referrerPolicy="no-referrer"
-        onError={() => setImageFailed(true)}
+        onError={() => setFailedThumbnail(item.thumbnail)}
       />
     );
   }
@@ -1669,6 +1698,8 @@ function DefaultPreview({
 }) {
   return (
     <div className={`default-preview ${compact ? "compact" : ""}`}>
+      {/* Local fallback covers are served directly by the worker. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={getDefaultCover(category)} alt={alt} loading="lazy" />
       {!compact && onRefresh && (
         <button

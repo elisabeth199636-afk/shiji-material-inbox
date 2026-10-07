@@ -47,6 +47,7 @@ test("builds the material inbox product surface", async () => {
   assert.match(page, /使用 ChatGPT 登录/);
   assert.match(page, /getChatGPTUser/);
   assert.match(page, /chatGPTSignOutPath/);
+  assert.match(page, /id: user\.id/);
   assert.match(layout, /拾集 · 灵感素材库/);
   assert.match(layout, /og\.png/);
   assert.match(layout, /viewportFit: "cover"/);
@@ -64,6 +65,13 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /最近搜索/);
   assert.match(client, /清空记录/);
   assert.match(client, /shiji\.search-history/);
+  assert.match(client, /getSearchHistoryKey\(user\.id\)/);
+  assert.match(client, /encodeURIComponent\(userId\)/);
+  assert.match(client, /localStorage\.setItem\(storageKey/);
+  assert.doesNotMatch(
+    client,
+    /localStorage\.setItem\(\s*SEARCH_HISTORY_KEY,/,
+  );
   assert.match(client, /knownTags/);
   assert.match(client, /getTagSuggestions/);
   assert.match(tagInput, /startsWith\(query\)/);
