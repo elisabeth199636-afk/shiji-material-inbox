@@ -18,8 +18,9 @@
 
 ### 核心功能
 
+- **游客模式**：无需登录即可体验完整的素材整理流程；游客数据仅保存在当前浏览器，不会上传到云端。
 - **跨平台采集**：识别小红书、抖音、B 站、Pinterest 和普通网页链接，也支持从完整的社交媒体分享文案中提取网址。
-- **自动生成预览**：读取网页标题和封面图；读取失败时，根据素材所属分类显示对应的兜底封面。
+- **自动生成预览**：登录后读取网页标题和封面图；读取失败时，根据素材所属分类显示对应的兜底封面。
 - **灵活分类**：内置灵感收集、视觉产品、AI 学习、文字创作、视频创作、知识学习等分类，也可以新增、重命名并设置分类颜色。
 - **标签与联想**：记录使用过的标签，输入时自动显示历史建议，方便快速整理素材。
 - **搜索与收藏**：搜索标题、标签和备注，查看最近搜索记录，并可将重要素材加入收藏。
@@ -28,13 +29,14 @@
 
 ### 账号与数据隐私
 
-- 使用 ChatGPT 账号登录。
+- 未登录用户可以使用游客模式，内容只保存在当前浏览器，清理浏览器数据后会消失。
+- 使用 ChatGPT 账号登录后，会进入该账号独立的云端素材库。
 - 素材、分类、标签和预览图片均按用户隔离保存。
 - 搜索记录保存在当前设备，并按登录用户隔离。
 - 链接仅在同一用户的素材库内去重，不会阻止不同用户收藏相同网址。
 - 预览抓取按用户独立限频，当前为每 10 分钟最多 30 次。
 
-公开访问代表任何拥有网址的人都可以登录使用，但每位用户只能访问和修改自己的内容。
+公开访问代表任何拥有网址的人都可以直接体验游客模式，或登录后使用自己的云端素材库。
 
 ### A/B 视觉版本
 
@@ -57,8 +59,9 @@ The app is designed for both desktop and iPhone. Paste a link directly on deskto
 
 ### Key features
 
+- **Guest mode** — Try the complete organizing workflow without signing in. Guest data stays in the current browser and is never uploaded to the cloud.
 - **Cross-platform capture** — Supports Xiaohongshu, Douyin, Bilibili, Pinterest, and regular webpages, including URLs embedded in full social-sharing text.
-- **Automatic previews** — Fetches page titles and cover images, with category-specific fallback covers when a preview is unavailable.
+- **Automatic previews** — Signed-in users can fetch page titles and cover images, with category-specific fallback covers when a preview is unavailable.
 - **Flexible categories** — Includes useful starter categories and lets users create, rename, and color-code their own.
 - **Remembered tags** — Suggests previously used tags as you type for faster organization.
 - **Search and favorites** — Searches titles, tags, and notes, remembers recent searches per user, and keeps important items in a favorites view.
@@ -67,13 +70,14 @@ The app is designed for both desktop and iPhone. Paste a link directly on deskto
 
 ### Accounts and data privacy
 
-- Sign in with a ChatGPT account.
+- Guests can use the app without signing in; their content stays in the current browser and disappears when its local data is cleared.
+- Signing in with ChatGPT opens a private cloud library for that account.
 - Materials, categories, tags, and preview images are isolated by user.
 - Search history stays on the current device and is separated by signed-in user.
 - Duplicate links are checked only within the same account, so different users can save the same URL.
 - Preview fetching is rate-limited independently per user to 30 requests every 10 minutes.
 
-Public access means anyone with the URL can sign in and use the app, while each user can only access and modify their own content.
+Public access means anyone with the URL can try guest mode immediately or sign in to use their own cloud library.
 
 ### Visual variants
 

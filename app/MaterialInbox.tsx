@@ -129,6 +129,8 @@ const primaryScopes = [
 ];
 
 const SEARCH_HISTORY_KEY = "shiji.search-history";
+const GUEST_ITEMS_KEY = "shiji.guest-items";
+const GUEST_CATEGORIES_KEY = "shiji.guest-categories";
 const RECENT_CUTOFF_TIME = Date.now() - 7 * 24 * 60 * 60 * 1000;
 const CATEGORY_COLOR_OPTIONS = [
   { value: "coral", label: "珊瑚红" },
@@ -189,6 +191,38 @@ function readSearchHistory(storageKey: string): string[] {
   }
 }
 
+function readGuestItems(): MaterialItem[] {
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(GUEST_ITEMS_KEY) ?? "[]",
+    );
+    return Array.isArray(stored) ? (stored as MaterialItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readGuestCategories(): MaterialCategory[] {
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(GUEST_CATEGORIES_KEY) ?? "null",
+    );
+    return Array.isArray(stored)
+      ? (stored as MaterialCategory[])
+      : initialCategories;
+  } catch {
+    return initialCategories;
+  }
+}
+
+function writeGuestCollection(key: string, value: unknown[]) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    throw new Error("当前浏览器无法保存游客内容，请检查隐私设置");
+  }
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
   const today = new Date();
@@ -217,9 +251,13 @@ function getHostname(url: string) {
 export function MaterialInbox({
   user,
   signOutPath,
+  signInPath,
+  guest = false,
 }: {
   user: { id: string; displayName: string; email: string };
-  signOutPath: string;
+  signOutPath?: string;
+  signInPath?: string;
+  guest?: boolean;
 }) {
   const userInitial = Array.from(user.displayName.trim())[0] || "我";
   const searchHistoryKey = getSearchHistoryKey(user.id);
@@ -265,6 +303,12 @@ export function MaterialInbox({
   const refreshingPreviewIdsRef = useRef<Set<string>>(new Set());
 
   const refreshPreview = useCallback(async (id: string, silent = false) => {
+    if (guest) {
+      if (!silent) {
+        setToast("游客模式使用分类封面；登录后可自动读取网页预览");
+      }
+      return;
+    }
     if (refreshingPreviewIdsRef.current.has(id)) return;
     refreshingPreviewIdsRef.current.add(id);
     setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
@@ -295,10 +339,21 @@ export function MaterialInbox({
       refreshingPreviewIdsRef.current.delete(id);
       setRefreshingPreviewIds(new Set(refreshingPreviewIdsRef.current));
     }
-  }, []);
+  }, [guest]);
 
   const loadItems = useCallback(async () => {
     try {
+      if (guest) {
+        const guestItems = readGuestItems();
+        const guestCategories = readGuestCategories();
+        setItems(guestItems);
+        setCategories(guestCategories);
+        const compactViewport = window.matchMedia("(max-width: 980px)").matches;
+        setSelectedId(compactViewport ? null : guestItems[0]?.id ?? null);
+        if (compactViewport) setInspectorOpen(false);
+        return;
+      }
+
       const [itemsResponse, categoriesResponse] = await Promise.all([
         fetch("/api/items", { cache: "no-store" }),
         fetch("/api/categories", { cache: "no-store" }),
@@ -329,7 +384,7 @@ export function MaterialInbox({
     } finally {
       setLoading(false);
     }
-  }, [refreshPreview, setInspectorOpen]);
+  }, [guest, refreshPreview, setInspectorOpen]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -583,6 +638,19 @@ export function MaterialInbox({
   }
 
   async function patchItem(id: string, patch: PatchMaterial) {
+    if (guest) {
+      try {
+        const nextItems = items.map((item) =>
+          item.id === id ? { ...item, ...patch } : item,
+        );
+        writeGuestCollection(GUEST_ITEMS_KEY, nextItems);
+        setItems(nextItems);
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : "保存失败");
+      }
+      return;
+    }
+
     const snapshot = items;
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -614,6 +682,55 @@ export function MaterialInbox({
     }
     setAdding(true);
     try {
+      if (guest) {
+        const normalizedUrl = extractedUrl.trim();
+        const duplicate = items.find(
+          (item) => item.normalizedUrl === normalizedUrl,
+        );
+        if (duplicate) {
+          setSelectedId(duplicate.id);
+          setInspectorOpen(true);
+          setCaptureOpen(false);
+          setToast("这条素材已经在游客库里了");
+          return;
+        }
+
+        const now = new Date().toISOString();
+        const item: MaterialItem = {
+          id: crypto.randomUUID(),
+          url: extractedUrl,
+          normalizedUrl,
+          title: captureTitle.trim() || getHostname(extractedUrl),
+          platform: getHostname(extractedUrl),
+          author: null,
+          thumbnail: null,
+          category: captureCategory,
+          tags: parseTagInput(captureTags),
+          notes: "",
+          captureMethod: "网页粘贴",
+          device: "网页",
+          favorite: false,
+          status: "ready",
+          previewCheckedAt: now,
+          createdAt: now,
+        };
+        const nextItems = [item, ...items];
+        writeGuestCollection(GUEST_ITEMS_KEY, nextItems);
+        setItems(nextItems);
+        setSelectedId(item.id);
+        setInspectorOpen(true);
+        setActiveScope("all");
+        setCaptureUrl("");
+        setCaptureTitle("");
+        setCaptureTags("");
+        setCaptureTagSuggestionsOpen(false);
+        setCaptureTagActiveIndex(0);
+        setCaptureCategory("收件箱");
+        setCaptureOpen(false);
+        setToast("素材已保存到当前浏览器");
+        return;
+      }
+
       const response = await fetch("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -667,6 +784,36 @@ export function MaterialInbox({
 
     setAddingCategory(true);
     try {
+      if (guest) {
+        if (categories.some((category) => category.name === name)) {
+          throw new Error("这个分类已经存在");
+        }
+        const firstUnusedColor = CATEGORY_COLOR_OPTIONS.find(
+          (option) =>
+            !categories.some((category) => category.color === option.value),
+        );
+        const category: MaterialCategory = {
+          name,
+          color:
+            firstUnusedColor?.value ??
+            CATEGORY_COLOR_OPTIONS[categories.length % CATEGORY_COLOR_OPTIONS.length]
+              .value,
+          position: categories.length,
+          isDefault: false,
+          createdAt: new Date().toISOString(),
+        };
+        const nextCategories = [...categories, category];
+        writeGuestCollection(GUEST_CATEGORIES_KEY, nextCategories);
+        setCategories(nextCategories);
+        setActiveScope(category.name);
+        setCaptureCategory(category.name);
+        setCategoryName("");
+        setCategoryEditorOpen(false);
+        setSidebarOpen(false);
+        setToast(`已创建本地分类“${category.name}”`);
+        return;
+      }
+
       const response = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -729,6 +876,44 @@ export function MaterialInbox({
 
     setRenamingCategory(true);
     try {
+      if (guest) {
+        if (
+          categories.some(
+            (category) =>
+              category.name !== previousName && category.name === newName,
+          )
+        ) {
+          throw new Error("这个分类名称已经存在");
+        }
+        const nextCategories = categories.map((category) =>
+          category.name === previousName
+            ? { ...category, name: newName, color: categoryColorDraft }
+            : category,
+        );
+        const nextItems = items.map((item) =>
+          item.category === previousName
+            ? { ...item, category: newName }
+            : item,
+        );
+        writeGuestCollection(GUEST_CATEGORIES_KEY, nextCategories);
+        writeGuestCollection(GUEST_ITEMS_KEY, nextItems);
+        setCategories(nextCategories);
+        setItems(nextItems);
+        setActiveScope((current) =>
+          current === previousName ? newName : current,
+        );
+        setCaptureCategory((current) =>
+          current === previousName ? newName : current,
+        );
+        cancelCategoryRename();
+        setToast(
+          newName === previousName
+            ? `已更新“${newName}”的颜色`
+            : `已更新本地分类“${newName}”`,
+        );
+        return;
+      }
+
       const response = await fetch("/api/categories", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -779,6 +964,16 @@ export function MaterialInbox({
     const confirmed = window.confirm(`确定删除“${item.title}”吗？`);
     if (!confirmed) return;
     try {
+      if (guest) {
+        const nextItems = items.filter((entry) => entry.id !== item.id);
+        writeGuestCollection(GUEST_ITEMS_KEY, nextItems);
+        setItems(nextItems);
+        setSelectedId(null);
+        setInspectorOpen(false);
+        setToast("本地素材已删除");
+        return;
+      }
+
       const response = await fetch(
         `/api/items?id=${encodeURIComponent(item.id)}`,
         { method: "DELETE" },
@@ -1026,8 +1221,8 @@ export function MaterialInbox({
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sync-dot" />
-          <span>云端已同步</span>
+          <div className={`sync-dot ${guest ? "local" : ""}`} />
+          <span>{guest ? "仅保存在本机" : "云端已同步"}</span>
           <small>{items.length} 条素材</small>
         </div>
       </aside>
@@ -1136,17 +1331,39 @@ export function MaterialInbox({
               <Plus size={16} />
               <span>添加素材</span>
             </button>
-            <a
-              className="avatar"
-              href={signOutPath}
-              target="_top"
-              aria-label={`${user.displayName}，退出登录`}
-              title={`${user.email} · 退出登录`}
-            >
-              {userInitial.toUpperCase()}
-            </a>
+            {guest ? (
+              <a
+                className="guest-account-link"
+                href={signInPath}
+                target="_top"
+                title="登录后使用独立的云端素材库"
+              >
+                登录使用云端库
+              </a>
+            ) : (
+              <a
+                className="avatar"
+                href={signOutPath}
+                target="_top"
+                aria-label={`${user.displayName}，退出登录`}
+                title={`${user.email} · 退出登录`}
+              >
+                {userInitial.toUpperCase()}
+              </a>
+            )}
           </div>
         </header>
+
+        {guest && (
+          <div className="guest-mode-notice" role="status">
+            <span>
+              游客模式：素材仅保存在当前浏览器，清理浏览器数据后会消失。
+            </span>
+            <a href={signInPath} target="_top">
+              登录使用云端库
+            </a>
+          </div>
+        )}
 
         {captureOpen && (
           <button
@@ -1165,7 +1382,11 @@ export function MaterialInbox({
               </div>
               <div>
                 <strong>把链接或分享文案放进素材库</strong>
-                <p>支持社交平台分享文案与 Pinterest 等网页链接。</p>
+                <p>
+                  {guest
+                    ? "游客素材仅保存在当前浏览器，并使用分类封面。"
+                    : "支持社交平台分享文案与 Pinterest 等网页链接。"}
+                </p>
               </div>
               <button
                 className="icon-button"

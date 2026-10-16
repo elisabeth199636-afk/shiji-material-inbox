@@ -22,6 +22,7 @@ test("builds the material inbox product surface", async () => {
     userIsolationMigration,
     previewRateLimit,
     previewRateLimitMigration,
+    guestPage,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -47,11 +48,15 @@ test("builds the material inbox product surface", async () => {
       new URL("../drizzle/0005_lyrical_mantis.sql", import.meta.url),
       "utf8",
     ),
+    readFile(new URL("../app/guest/page.tsx", import.meta.url), "utf8"),
     access(new URL("../dist/server/index.js", import.meta.url)),
   ]);
 
   assert.match(page, /MaterialInbox/);
   assert.match(page, /使用 ChatGPT 登录/);
+  assert.match(page, /先以游客模式体验/);
+  assert.match(page, /href="\/guest"/);
+  assert.match(page, /游客内容仅保存在当前浏览器/);
   assert.match(page, /getChatGPTUser/);
   assert.match(page, /chatGPTSignOutPath/);
   assert.match(page, /id: user\.id/);
@@ -75,6 +80,13 @@ test("builds the material inbox product surface", async () => {
   assert.match(client, /getSearchHistoryKey\(user\.id\)/);
   assert.match(client, /encodeURIComponent\(userId\)/);
   assert.match(client, /localStorage\.setItem\(storageKey/);
+  assert.match(client, /shiji\.guest-items/);
+  assert.match(client, /shiji\.guest-categories/);
+  assert.match(client, /readGuestItems/);
+  assert.match(client, /writeGuestCollection/);
+  assert.match(client, /素材已保存到当前浏览器/);
+  assert.match(client, /仅保存在本机/);
+  assert.match(client, /登录使用云端库/);
   assert.doesNotMatch(
     client,
     /localStorage\.setItem\(\s*SEARCH_HISTORY_KEY,/,
@@ -114,6 +126,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(globals, /\.capture-mobile-scrim/);
   assert.match(globals, /\.capture-tray::before/);
   assert.match(globals, /\.tag-suggestions/);
+  assert.match(globals, /\.sign-in-guest-button/);
+  assert.match(globals, /\.guest-mode-notice/);
+  assert.match(globals, /\.guest-account-link/);
   assert.match(globals, /\.capture-form \.field-tags/);
   assert.doesNotMatch(globals, /\.capture-form \.field:last-of-type/);
   assert.match(client, /extractHttpUrl/);
@@ -198,6 +213,9 @@ test("builds the material inbox product surface", async () => {
   assert.match(itemsSource, /WHERE user_id = \? AND normalized_url = \?/);
   assert.match(itemsSource, /WHERE user_id = \? AND id = \?/);
   assert.match(itemsSource, /previews\/users\//);
+  assert.match(guestPage, /guest-local/);
+  assert.match(guestPage, /guest/);
+  assert.match(guestPage, /chatGPTSignInPath/);
   assert.doesNotMatch(
     `${page}\n${layout}\n${client}`,
     /codex-preview|SkeletonPreview|Your site is taking shape/i,

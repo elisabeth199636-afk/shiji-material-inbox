@@ -30,6 +30,12 @@ export default async function Home() {
           >
             使用 ChatGPT 登录
           </a>
+          <a className="sign-in-guest-button" href="/guest">
+            先以游客模式体验
+          </a>
+          <p className="sign-in-guest-note">
+            游客内容仅保存在当前浏览器，不会上传到云端。
+          </p>
         </section>
       </main>
     );
